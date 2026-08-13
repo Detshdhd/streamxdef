@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Edge Runtime: near-zero cold starts, runs globally close to the user.
-// This is critical for video proxying — each segment request is a function
-// call, and serverless cold starts (1-2s each) cause constant buffering.
-export const runtime = 'edge';
+// Pin to same region as /api/source so both share the same outgoing IP/ASN.
+// goodstream CDN tokens are ASN-bound — if source extraction and proxy fetch
+// happen from different IPs, segments return 403/404.
+export const preferredRegion = 'iad1';
 
 /**
  * /api/proxy

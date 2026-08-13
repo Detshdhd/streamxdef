@@ -3,6 +3,8 @@ import { createDecipheriv } from 'crypto';
 
 // Allow up to 10s on Vercel so both Vidrock + Vimeus can finish.
 export const maxDuration = 10;
+// Pin to same region as /api/proxy so CDN tokens (ASN-bound) match.
+export const preferredRegion = 'iad1';
 
 /**
  * /api/source
