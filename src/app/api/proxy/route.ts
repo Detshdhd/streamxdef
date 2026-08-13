@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Vercel serverless function timeout. Segment/playlist requests are short,
-// but CDN 429-retry paths can take longer — give headroom. (Pro plan; ignored
-// on self-host / other platforms.)
-export const maxDuration = 60;
+// Edge Runtime: near-zero cold starts, runs globally close to the user.
+// This is critical for video proxying — each segment request is a function
+// call, and serverless cold starts (1-2s each) cause constant buffering.
+export const runtime = 'edge';
 
 /**
  * /api/proxy
@@ -252,31 +252,6 @@ function getHeadersForUrl(url: string): Record<string, string> {
 }
 
 /**
- * Fetch with retry for rate-limited (429) responses.
- * Retries up to 1 time with a short delay. Timeout is 15s (segments are
- * typically ~500KB and should arrive in 2-3s; 15s is the safety net).
- */
-async function fetchWithRetry(url: string, headers: Record<string, string>, maxRetries = 1): Promise<Response> {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const response = await fetch(url, {
-      headers,
-      redirect: 'follow',
-      signal: AbortSignal.timeout(15000),
-    });
-
-    if (response.status === 429 && attempt < maxRetries) {
-      const waitMs = 1000;
-      await new Promise(resolve => setTimeout(resolve, waitMs));
-      continue;
-    }
-
-    return response;
-  }
-
-  throw new Error('Max retries exceeded');
-}
-
-/**
  * Fetch the upstream with a two-tier timeout:
  *   - headers must arrive within HEADER_TIMEOUT (a stalled CDN should not
  *     hold the player forever)
@@ -288,7 +263,7 @@ async function fetchWithRetry(url: string, headers: Record<string, string>, maxR
  * `500 in 15.1s` / `failed to pipe response` / `TMEOUT_ERR` seen in dev.log),
  * which forced the player down to 720p/480p.
  */
-const HEADER_TIMEOUT = 20000;
+const HEADER_TIMEOUT = 10000;
 
 async function fetchUpstream(url: string, headers: Record<string, string>): Promise<Response> {
   const controller = new AbortController();

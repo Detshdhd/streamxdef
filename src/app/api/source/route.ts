@@ -114,7 +114,7 @@ async function fetchVidrockSources(tmdbId: number, type: string, season?: string
             'Origin': 'https://vidrock.ru',
           },
           redirect: 'follow',
-          signal: AbortSignal.timeout(attempt === 0 ? 20000 : 30000),
+          signal: AbortSignal.timeout(attempt === 0 ? 4000 : 6000),
         });
       } catch (e) {
         console.log(`[Vidrock] API attempt ${attempt + 1} failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -659,7 +659,7 @@ export async function GET(request: NextRequest) {
   // cache upgrade to deliver Spanish sources on a later call. In practice
   // both providers finish quickly (Vidrock ~0.7s, Vimeus ~1.2s), so the
   // total wait is still fast.
-  const HARD_CEILING = 5000;
+  const HARD_CEILING = 3000;
   const empty: ResolvedSource[] = [];
 
   const vidrockP = fetchVidrockSources(parseInt(tmdbId, 10), type, season || undefined, episode || undefined)
