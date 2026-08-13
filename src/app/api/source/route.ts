@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createDecipheriv } from 'crypto';
 
+// Allow up to 10s on Vercel so both Vidrock + Vimeus can finish.
+export const maxDuration = 10;
+
 /**
  * /api/source
  *
@@ -227,7 +230,7 @@ async function extractStreamFromEmbed(embedUrl: string): Promise<{ streamUrl: st
         'Referer': VIMEUS_DOMAIN,
       },
       redirect: 'follow',
-      signal: AbortSignal.timeout(3000),
+      signal: AbortSignal.timeout(2000),
     });
 
     if (!response.ok) return { streamUrl: null, streamType: null };
@@ -369,7 +372,7 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
         'Referer': VIMEUS_DOMAIN,
       },
       redirect: 'follow',
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!response.ok) {
@@ -650,42 +653,29 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ sources: cached.sources });
   }
 
-  // FASTEST-SOURCE RULE — respond the moment ONE provider has a usable result,
-  // without waiting for all of them. Vidrock (English) answers fast (<1s);
-  // Vimeus (Spanish) scrapes embed pages and can take 4-7s. We fire both in
-  // parallel and return as soon as either resolves — the player gets a working
-  // source immediately. If a provider returns nothing, wait for the other one
-  // instead. A hard ceiling guarantees we never block a slow provider beyond
-  // it. The slower provider finishes in the background and upgrades the cache.
-  const HARD_CEILING = 2000;
+  // WAIT-FOR-BOTH RULE — fire Vidrock + Vimeus in parallel and wait for BOTH
+  // to finish (up to a 5s ceiling). On serverless (Vercel) there's no
+  // persistent memory between requests, so we can't rely on a background
+  // cache upgrade to deliver Spanish sources on a later call. In practice
+  // both providers finish quickly (Vidrock ~0.7s, Vimeus ~1.2s), so the
+  // total wait is still fast.
+  const HARD_CEILING = 5000;
   const empty: ResolvedSource[] = [];
-
-  let vidrockSources: ResolvedSource[] = empty;
-  let vimeusSources: ResolvedSource[] = empty;
 
   const vidrockP = fetchVidrockSources(parseInt(tmdbId, 10), type, season || undefined, episode || undefined)
     .catch(() => empty);
   const vimeusP = fetchVimeusSources(parseInt(tmdbId, 10), type, season || undefined, episode || undefined)
     .catch(() => empty);
 
-  // Resolve as soon as ONE provider returns sources (or both settled empty).
-  // Using a custom race so a slow provider never delays an available source.
-  await new Promise<void>((resolve) => {
-    let vidDone = false;
-    let vimDone = false;
-
-    const maybeResolve = () => {
-      const vidReady = vidDone && vidrockSources.length > 0;
-      const vimReady = vimDone && vimeusSources.length > 0;
-      if (vidReady || vimReady || (vidDone && vimDone)) resolve();
-    };
-
-    vidrockP.then((s) => { vidrockSources = s; vidDone = true; maybeResolve(); });
-    vimeusP.then((s) => { vimeusSources = s; vimDone = true; maybeResolve(); });
-
-    // Never wait longer than the ceiling, even if nothing answered yet.
-    setTimeout(resolve, HARD_CEILING);
-  });
+  // Wait for both with a hard ceiling so a stalled provider can't hang the
+  // request indefinitely.
+  const timeoutP = new Promise<ResolvedSource[]>((resolve) =>
+    setTimeout(() => resolve(empty), HARD_CEILING),
+  );
+  const [vidrockSources, vimeusSources] = await Promise.all([
+    Promise.race([vidrockP, timeoutP]),
+    Promise.race([vimeusP, timeoutP.then(() => empty)]),
+  ]);
 
   console.log(`[Source] Vimeus: ${vimeusSources.length}, Vidrock: ${vidrockSources.length}`);
 
@@ -696,19 +686,11 @@ export async function GET(request: NextRequest) {
   }
 
   // Store in cache for subsequent requests (language switch, replay, etc.)
+  // On serverless (Vercel) this only helps within the same warm instance.
   if (allSources.length > 0) {
     sourceCache.set(cacheKey, { sources: allSources, timestamp: Date.now() });
   }
   pruneSourceCache();
-
-  // Fire-and-forget: when BOTH providers finish, upgrade the cache with the
-  // merged list so the next request / language switch sees every source.
-  void Promise.allSettled([vidrockP, vimeusP]).then(([vid, vim]) => {
-    if (vid.status === 'fulfilled' && vim.status === 'fulfilled') {
-      const merged = combineAndSort(vim.value, vid.value);
-      if (merged.length > 0) sourceCache.set(cacheKey, { sources: merged, timestamp: Date.now() });
-    }
-  });
 
   return NextResponse.json({ sources: allSources });
 }
