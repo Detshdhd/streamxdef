@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+dev.log
+server.log
+.env.local
+.env*.local
+.preview-*.png
+.server-pid
+*.zip
+start-server.sh
+Dockerfile
+.dockerignore
+deploy-oracle.sh
