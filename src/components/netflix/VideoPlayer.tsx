@@ -29,6 +29,31 @@ interface PlayerInnerProps {
   preloadedSources?: SourceInfo[];
 }
 
+/* ─── Client-side source cache ──────────────────────────────────── */
+// Sources are expensive to resolve (1-5s of live scraping). Cache them in
+// sessionStorage for 10 minutes so re-opening a movie or switching language
+// is instant. Keys: "src:{tmdbId}:{type}:{s}:{e}".
+const SOURCE_CACHE_TTL = 10 * 60 * 1000; // 10 min (matches server-side)
+
+function getCachedSources(key: string): SourceInfo[] | null {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const { sources, ts } = JSON.parse(raw);
+    if (Date.now() - ts > SOURCE_CACHE_TTL) {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+    return sources;
+  } catch { return null; }
+}
+
+function setCachedSources(key: string, sources: SourceInfo[]) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify({ sources, ts: Date.now() }));
+  } catch { /* quota full — ignore */ }
+}
+
 /* ─── Helpers ────────────────────────────────────────────────────── */
 
 function proxyUrl(originalUrl: string): string {
@@ -128,7 +153,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
   const [subtitleUrl, setSubtitleUrl] = useState<string | null>(null);
   const subtitlesFetchedRef = useRef(false);
 
-  // Fetch sources (or use preloaded ones)
+  // Fetch sources (or use preloaded/cached ones)
   useEffect(() => {
     if (preloadedSources && preloadedSources.length > 0) {
       setSources(preloadedSources);
@@ -142,12 +167,21 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
       params.set('e', String(episode));
     }
 
+    // Check client-side cache first — instant on repeat visits
+    const cacheKey = `src:${tmdbId}:${mediaType}:${season || ''}:${episode || ''}`;
+    const cached = getCachedSources(cacheKey);
+    if (cached && cached.length > 0) {
+      setSources(cached);
+      return;
+    }
+
     fetch(`/api/source?${params}`)
       .then(r => r.json())
       .then(data => {
         if (cancelled) return;
         const allSources = data.sources || [];
         if (allSources.length > 0) {
+          setCachedSources(cacheKey, allSources);
           setSources(allSources);
         } else {
           setError('No se pudo reproducir este contenido');
@@ -680,12 +714,21 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
       params.set('e', String(episode));
     }
 
+    // Check client-side cache first
+    const cacheKey = `src:${tmdbId}:${mediaType}:${season || ''}:${episode || ''}`;
+    const cached = getCachedSources(cacheKey);
+    if (cached && cached.length > 0) {
+      setSources(cached);
+      return;
+    }
+
     fetch(`/api/source?${params}`)
       .then(r => r.json())
       .then(data => {
         if (cancelled) return;
         const allSources = data.sources || [];
         if (allSources.length > 0) {
+          setCachedSources(cacheKey, allSources);
           setSources(allSources);
         } else {
           setError('No se pudo reproducir este contenido');
@@ -2087,11 +2130,21 @@ export default function VideoPlayer() {
       params.set('e', String(playerEpisode));
     }
 
+    // Check client-side cache first — instant on repeat visits
+    const cacheKey = `src:${playerTmdbId}:${playerMediaType}:${playerSeason || ''}:${playerEpisode || ''}`;
+    const cached = getCachedSources(cacheKey);
+    if (cached && cached.length > 0) {
+      setSources(cached);
+      setSourceLoading(false);
+      return;
+    }
+
     fetch(`/api/source?${params}`)
       .then(r => r.json())
       .then(data => {
         if (cancelled) return;
         if (data.sources?.length > 0) {
+          setCachedSources(cacheKey, data.sources);
           setSources(data.sources);
         } else {
           setSourceError('No se pudo reproducir este contenido');
