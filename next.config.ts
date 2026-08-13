@@ -2,7 +2,8 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
+  // standalone is for Docker/Oracle self-hosting; Vercel needs its own build
+  ...(process.env.VERCEL ? {} : { output: 'standalone' as const }),
   reactStrictMode: false,
   turbopack: {
     root: path.resolve(__dirname),
