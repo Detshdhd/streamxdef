@@ -4,9 +4,9 @@ import { useRef, useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Play, Heart, Star } from 'lucide-react';
 import { useStore, type MediaItem } from '@/store/useStore';
 
-// Use w342 for cards (half the bytes of w500 → faster grid load, still crisp
-// at card sizes). Posters are typically displayed at 120-235px wide.
-const TMDB_IMG = 'https://image.tmdb.org/t/p/w342';
+// Cards render at ~120-235px wide — w185 is visually identical at that size
+// and ~3x lighter than w342, so poster grids load dramatically faster.
+const TMDB_IMG = 'https://image.tmdb.org/t/p/w185';
 
 interface ContentRowProps {
   title: string;

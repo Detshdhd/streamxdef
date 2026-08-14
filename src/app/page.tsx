@@ -231,9 +231,9 @@ function ContinueWatchingRow({ items }: { items: ContinueWatchingItem[] }) {
           const pct = cw.progress.duration > 0 ? Math.min(100, (cw.progress.watched / cw.progress.duration) * 100) : 0;
           const remaining = cw.progress.duration - cw.progress.watched;
           const img = cw.backdrop_path
-            ? `https://image.tmdb.org/t/p/w500${cw.backdrop_path}`
+            ? `https://image.tmdb.org/t/p/w300${cw.backdrop_path}`
             : cw.poster_path
-              ? `https://image.tmdb.org/t/p/w500${cw.poster_path}`
+              ? `https://image.tmdb.org/t/p/w185${cw.poster_path}`
               : '';
           return (
             <div
@@ -321,7 +321,7 @@ function MiListaTab() {
             <div className="nfx-card-img">
               {item.poster_path ? (
                 <img
-                  src={`https://image.tmdb.org/t/p/w500${item.poster_path}`}
+                  src={`https://image.tmdb.org/t/p/w185${item.poster_path}`}
                   alt={item.title || item.name || ''}
                   className="w-full h-full object-cover"
                   loading="lazy"

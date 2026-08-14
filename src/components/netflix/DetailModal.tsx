@@ -153,7 +153,7 @@ export default function DetailModal() {
                       const segs = sub.split('\n')
                         .map(l => l.trim())
                         .filter(l => l.startsWith('/api/proxy?url='));
-                      segs.slice(0, 2).forEach(s => fetch(s).catch(() => {}));
+                      segs.slice(0, 3).forEach(s => fetch(s).catch(() => {}));
                     })
                     .catch(() => {})
                 );

@@ -341,7 +341,11 @@ export async function GET(request: NextRequest) {
       return new NextResponse(rewritten, {
         headers: {
           'Content-Type': 'application/vnd.apple.mpegurl',
-          'Cache-Control': 'no-cache, no-store',
+          // VOD playlists are static for the life of their token (hours), so
+          // a 5-min browser cache is safe. This lets the modal's pipeline
+          // warming (m3u8 + variants) be REUSED by hls.js on Play — the
+          // master/variant hops become 0ms instead of ~1s each.
+          'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
           'Access-Control-Allow-Origin': '*',
         },
       });

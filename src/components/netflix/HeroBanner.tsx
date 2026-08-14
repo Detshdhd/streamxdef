@@ -64,7 +64,7 @@ export default function HeroBanner({ items }: HeroBannerProps) {
       <div className={`absolute inset-0 transition-opacity duration-500 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
         {item.backdrop_path && (
           <img
-            src={`https://image.tmdb.org/t/p/original${item.backdrop_path}`}
+            src={`https://image.tmdb.org/t/p/w780${item.backdrop_path}`}
             alt=""
             className={`w-full h-full object-cover animate-ken-burns transition-opacity duration-[800ms] ease-out ${
               loaded ? 'opacity-100' : 'opacity-0'
