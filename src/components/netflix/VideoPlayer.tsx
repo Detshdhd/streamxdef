@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Hls from 'hls.js';
 import {
   ArrowLeft, Maximize, Minimize, Play, Pause,
-  SkipBack, SkipForward, Volume2, VolumeX, Volume1, AlertCircle, Subtitles,
+  SkipBack, SkipForward, Volume2, VolumeX, Volume1, AlertCircle, Subtitles, Settings2,
 } from 'lucide-react';
 import {
   useStore,
@@ -277,8 +277,11 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        maxBufferLength: 15,
-        maxMaxBufferLength: 20,
+        // BIG BUFFER: keep up to 90s ahead (5 min max) so slow/hiccupy
+        // connections keep playing — the player stores lots of upcoming video.
+        maxBufferLength: 90,
+        maxMaxBufferLength: 300,
+        maxBufferSize: 150 * 1000 * 1000,
         manifestLoadingTimeOut: 15000,
         manifestLoadingMaxRetry: 3,
         levelLoadingTimeOut: 15000,
@@ -286,13 +289,15 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
         fragLoadingTimeOut: 15000,
         fragLoadingMaxRetry: 6,
         fragLoadingRetryDelay: 500,
+        // ADAPTIVE QUALITY: startLevel -1 lets hls.js measure real bandwidth
+        // and pick the best quality the connection can actually sustain.
+        // It ramps UP when the connection is fast (1080p on 120Mbps) and
+        // drops down on slow connections so the video never stalls.
         startLevel: -1,
+        abrEwmaDefaultEstimate: 1500000,
         capLevelToPlayerSize: false,
-        abrEwmaDefaultEstimate: 5000000,
-        maxBufferSize: 30 * 1000 * 1000,
         maxBufferHole: 0.5,
         startFragPrefetch: true,
-        testBandwidth: false,
       });
       hlsRef.current = hls;
       hls.loadSource(proxiedUrl);
@@ -306,16 +311,6 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
         }
         resumeTimeRef.current = 0;
         video.play().catch(() => {});
-      });
-
-      // Jump straight to the BEST quality after the first fragment buffers —
-      // measured: 1080p segments (434KB) load in ~0.33s, same as 360p (270KB),
-      // so there's no bandwidth reason to stay low. Start low only for the
-      // very first frame, then upgrade immediately.
-      hls.once(Hls.Events.FRAG_BUFFERED, () => {
-        if (hls.levels && hls.levels.length > 0) {
-          hls.currentLevel = hls.levels.length - 1; // max quality
-        }
       });
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -634,6 +629,41 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
   const nextEpisodeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const speedMenuRef = useRef<HTMLDivElement>(null);
 
+  // ─── Quality selector state ───
+  // Available quality levels from the HLS manifest + the currently selected
+  // one (-1 = Auto, letting hls.js ABR adapt to the connection).
+  const [qualityLevels, setQualityLevels] = useState<{ index: number; label: string }[]>([]);
+  const [currentQuality, setCurrentQuality] = useState(-1); // -1 = Auto
+  const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
+  const qualityMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close quality menu on outside click
+  useEffect(() => {
+    if (!qualityMenuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (qualityMenuRef.current && !qualityMenuRef.current.contains(e.target as Node)) {
+        setQualityMenuOpen(false);
+      }
+    };
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, [qualityMenuOpen]);
+
+  const changeQuality = (levelIndex: number) => {
+    const hls = hlsRef.current;
+    if (!hls) return;
+    hls.currentLevel = levelIndex; // -1 = Auto (ABR), >=0 fixed level
+    if (levelIndex >= 0) {
+      // Manual pick disables ABR switching until Auto is re-selected.
+      hls.autoLevelCapping = levelIndex;
+      hls.loadLevel = levelIndex;
+    } else {
+      hls.autoLevelCapping = -1;
+    }
+    setCurrentQuality(levelIndex);
+    setQualityMenuOpen(false);
+  };
+
   // ─── Keyboard shortcut hint overlay state (visual-only enhancement) ───
   const [shortcutHint, setShortcutHint] = useState<string | null>(null);
   const shortcutHintTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -788,6 +818,10 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
     setLoading(true);
     setError('');
     switchingRef.current = false;
+    // Reset the quality selector to Auto for the new stream — the level
+    // indexes from the previous manifest don't apply to the new one.
+    setQualityLevels([]);
+    setCurrentQuality(-1);
 
     console.log(`[Player] Loading source ${currentSource + 1}/${sources.length}: ${src.name} (${src.language})`);
 
@@ -824,8 +858,11 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        maxBufferLength: 15,
-        maxMaxBufferLength: 20,
+        // BIG BUFFER: keep up to 90s ahead (5 min max) so slow/hiccupy
+        // connections keep playing — the player stores lots of upcoming video.
+        maxBufferLength: 90,
+        maxMaxBufferLength: 300,
+        maxBufferSize: 150 * 1000 * 1000,
         manifestLoadingTimeOut: 15000,
         manifestLoadingMaxRetry: 3,
         levelLoadingTimeOut: 15000,
@@ -833,27 +870,29 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
         fragLoadingTimeOut: 15000,
         fragLoadingMaxRetry: 6,
         fragLoadingRetryDelay: 500,
+        // ADAPTIVE QUALITY: hls.js measures real bandwidth and picks the
+        // best quality the connection sustains — ramps UP to 1080p on fast
+        // connections and drops down on slow ones so video never stalls.
         startLevel: -1,
+        abrEwmaDefaultEstimate: 1500000,
         capLevelToPlayerSize: false,
-        abrEwmaDefaultEstimate: 5000000,
-        maxBufferSize: 30 * 1000 * 1000,
         maxBufferHole: 0.5,
         startFragPrefetch: true,
-        testBandwidth: false,
       });
       hlsRef.current = hls;
       hls.loadSource(proxiedUrl);
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        // Force MAX quality immediately — segments load in ~0.3s regardless
-        // of resolution, so there's no speed gain from starting low.
+        // No forced quality — ABR decides based on measured bandwidth.
+        // Capture the available quality levels for the manual selector.
         if (hls.levels && hls.levels.length > 0) {
-          const top = hls.levels.length - 1;
-          hls.startLevel = top;
-          hls.currentLevel = top;
-          hls.autoLevelCapping = top;
-          hls.capLevelToPlayerSize = false;
+          const levels = hls.levels
+            .map((lvl, i) => ({ index: i, height: lvl.height || 0 }))
+            .filter(lvl => lvl.height > 0)
+            .sort((a, b) => b.height - a.height)
+            .map(lvl => ({ index: lvl.index, label: `${lvl.height}p` }));
+          setQualityLevels(levels);
         }
         clearTimeout(loadTimeout);
         setLoading(false);
@@ -1723,6 +1762,53 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
                   </div>
                 );
               })()}
+
+              {/* Quality selector — Auto adapts to the connection; manual
+                  options let the user force a lower quality if the video
+                  keeps buffering on slow internet. */}
+              {qualityLevels.length > 1 && (
+                <div ref={qualityMenuRef} className="relative">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setQualityMenuOpen(!qualityMenuOpen); resetTimer(); }}
+                    className="glass rounded-full px-3.5 py-2 text-xs flex items-center gap-1.5 text-white/70 hover:text-white hover:bg-white/10 transition-all active:scale-95"
+                  >
+                    <Settings2 className="w-4 h-4" />
+                    <span className="font-semibold tracking-wide">
+                      {currentQuality === -1 ? 'Auto' : qualityLevels.find(q => q.index === currentQuality)?.label || 'Auto'}
+                    </span>
+                  </button>
+                  {qualityMenuOpen && (
+                    <div className="absolute bottom-full right-0 mb-3 glass-heavy rounded-2xl overflow-hidden min-w-[160px] z-50 animate-nfx-fade-in">
+                      <div className="px-4 py-2.5 border-b border-white/[0.06] text-white/35 text-[10px] font-medium tracking-[0.15em] uppercase">Calidad</div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); changeQuality(-1); }}
+                        className={`w-full text-left px-4 py-3 text-sm transition-all relative ${
+                          currentQuality === -1
+                            ? 'text-white font-medium bg-[#e50914]/10'
+                            : 'text-white/45 hover:bg-white/[0.04] hover:text-white/85'
+                        }`}
+                      >
+                        {currentQuality === -1 && <span className="mr-2 text-[#e50914]">&#10003;</span>}
+                        Auto <span className="text-white/30 text-xs">(recomendado)</span>
+                      </button>
+                      {qualityLevels.map((q) => (
+                        <button
+                          key={q.index}
+                          onClick={(e) => { e.stopPropagation(); changeQuality(q.index); }}
+                          className={`w-full text-left px-4 py-3 text-sm transition-all relative ${
+                            currentQuality === q.index
+                              ? 'text-white font-medium bg-[#e50914]/10'
+                              : 'text-white/45 hover:bg-white/[0.04] hover:text-white/85'
+                          }`}
+                        >
+                          {q.index === currentQuality && <span className="mr-2 text-[#e50914]">&#10003;</span>}
+                          {q.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* CC / Subtitles */}
               {subtitleUrl && (
