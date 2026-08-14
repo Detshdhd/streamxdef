@@ -345,7 +345,10 @@ export async function GET(request: NextRequest) {
           // a 5-min browser cache is safe. This lets the modal's pipeline
           // warming (m3u8 + variants) be REUSED by hls.js on Play — the
           // master/variant hops become 0ms instead of ~1s each.
-          'Cache-Control': 'public, max-age=300, stale-while-revalidate=600',
+          // NOTE: no stale-while-revalidate here — Vercel rewrites the whole
+          // Cache-Control when it sees SWR on function responses (verified:
+          // plain max-age survives, SWR gets normalized to max-age=0).
+          'Cache-Control': 'public, max-age=300',
           'Access-Control-Allow-Origin': '*',
         },
       });
