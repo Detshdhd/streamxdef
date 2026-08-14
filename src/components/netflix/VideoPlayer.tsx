@@ -277,21 +277,19 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        maxBufferLength: 10,
-        maxMaxBufferLength: 30,
-        manifestLoadingTimeOut: 20000,
+        maxBufferLength: 15,
+        maxMaxBufferLength: 20,
+        manifestLoadingTimeOut: 15000,
         manifestLoadingMaxRetry: 3,
-        levelLoadingTimeOut: 20000,
+        levelLoadingTimeOut: 15000,
         levelLoadingMaxRetry: 4,
-        // Segments through the proxy can take 10-15s on slow CDNs. The old
-        // 12s cap aborted them, causing a 500 and a fallback to 720p/480p.
-        fragLoadingTimeOut: 30000,
+        fragLoadingTimeOut: 15000,
         fragLoadingMaxRetry: 6,
         fragLoadingRetryDelay: 500,
         startLevel: -1,
         capLevelToPlayerSize: false,
         abrEwmaDefaultEstimate: 5000000,
-        maxBufferSize: 60 * 1000 * 1000,
+        maxBufferSize: 30 * 1000 * 1000,
         maxBufferHole: 0.5,
         startFragPrefetch: true,
         testBandwidth: false,
@@ -322,10 +320,21 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
 
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
-          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-            hls.recoverMediaError();
-          } else {
-            handleError();
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              // Proxy/CDN hiccup — resume from current position instead of
+              // killing the stream. This fixes "se cae en mitad del stream".
+              console.log('[HLS] Fatal network error, recovering...');
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.log('[HLS] Fatal media error, recovering...');
+              hls.recoverMediaError();
+              break;
+            default:
+              // Truly unrecoverable — try next source
+              handleError();
+              break;
           }
         }
       });
@@ -815,27 +824,20 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        // Ultra fast-start: minimal buffer to show first frame ASAP, then grow.
-        maxBufferLength: 10,
-        maxMaxBufferLength: 30,
-        manifestLoadingTimeOut: 20000,
+        maxBufferLength: 15,
+        maxMaxBufferLength: 20,
+        manifestLoadingTimeOut: 15000,
         manifestLoadingMaxRetry: 3,
-        levelLoadingTimeOut: 20000,
+        levelLoadingTimeOut: 15000,
         levelLoadingMaxRetry: 4,
-        // Segments through the proxy can take 10-15s on slow CDNs. The old
-        // 12s cap aborted them, causing a fallback to 720p/480p.
-        fragLoadingTimeOut: 30000,
+        fragLoadingTimeOut: 15000,
         fragLoadingMaxRetry: 6,
         fragLoadingRetryDelay: 500,
-        // Start at the HIGHEST level — measured: 1080p segments (434KB) load
-        // in the same time as 360p (270KB) through our proxy (~0.3s). No reason
-        // to waste time on a quality downgrade we immediately reverse.
         startLevel: -1,
         capLevelToPlayerSize: false,
         abrEwmaDefaultEstimate: 5000000,
-        maxBufferSize: 60 * 1000 * 1000,
+        maxBufferSize: 30 * 1000 * 1000,
         maxBufferHole: 0.5,
-        // Aggressive: start downloading immediately, preload 2 fragments ahead.
         startFragPrefetch: true,
         testBandwidth: false,
       });
@@ -882,10 +884,20 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
           clearTimeout(loadTimeout);
-          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-            hls.recoverMediaError();
-          } else {
-            onSourceError();
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              // Proxy/CDN hiccup — resume from current position instead of
+              // killing the stream. This fixes "se cae en mitad del stream".
+              console.log('[HLS] Fatal network error, recovering...');
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.log('[HLS] Fatal media error, recovering...');
+              hls.recoverMediaError();
+              break;
+            default:
+              onSourceError();
+              break;
           }
         } else if (!data.fatal && nonFatalRetries < 3) {
           // Transient fragment/level load errors — kick HLS to retry from
@@ -2117,10 +2129,18 @@ export default function VideoPlayer() {
   const [sourceLoading, setSourceLoading] = useState(true);
   const [sourceError, setSourceError] = useState('');
 
+  // Track which movie the loaded sources belong to — prevents the
+  // "opens previous movie" bug when switching titles.
+  const currentMovieKey = `${playerTmdbId}-${playerMediaType}-${playerSeason || ''}-${playerEpisode || ''}`;
+  const [sourcesForMovie, setSourcesForMovie] = useState('');
+  const sourcesMatch = sourcesForMovie === currentMovieKey;
+
   // Fetch sources at the wrapper level
   useEffect(() => {
     if (!isPlaying || !playerTmdbId) return;
     let cancelled = false;
+    setSources([]);               // Clear old sources immediately
+    setSourcesForMovie('');       // Mark as stale
     setSourceLoading(true);
     setSourceError('');
 
@@ -2135,6 +2155,7 @@ export default function VideoPlayer() {
     const cached = getCachedSources(cacheKey);
     if (cached && cached.length > 0) {
       setSources(cached);
+      setSourcesForMovie(currentMovieKey);
       setSourceLoading(false);
       return;
     }
@@ -2146,6 +2167,7 @@ export default function VideoPlayer() {
         if (data.sources?.length > 0) {
           setCachedSources(cacheKey, data.sources);
           setSources(data.sources);
+          setSourcesForMovie(currentMovieKey);
         } else {
           setSourceError('No se pudo reproducir este contenido');
         }
@@ -2177,7 +2199,7 @@ export default function VideoPlayer() {
 
   const playerKey = `${playerTmdbId}-${playerMediaType}-${playerSeason}-${playerEpisode}`;
 
-  if (sourceLoading) {
+  if (sourceLoading || !sourcesMatch) {
     return (
       <div className="fixed inset-0 z-[2000] bg-[#0a0a0f] flex flex-col items-center justify-center">
         <h2 className="text-white text-2xl md:text-3xl font-bold tracking-tight mb-6 text-center px-6 hero-text-shimmer">{playerTitle}</h2>
