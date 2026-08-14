@@ -2246,25 +2246,37 @@ export default function VideoPlayer() {
       return;
     }
 
-    fetch(`/api/source?${params}`)
-      .then(r => r.json())
-      .then(data => {
-        if (cancelled) return;
-        if (data.sources?.length > 0) {
-          setCachedSources(cacheKey, data.sources);
-          setSources(data.sources);
-          setSourcesForMovie(currentMovieKey);
-        } else {
-          setSourceError('No se pudo reproducir este contenido');
-        }
-        setSourceLoading(false);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSourceError('No se pudo cargar el contenido');
-          setSourceLoading(false);
-        }
-      });
+    // Cold serverless instances sometimes return 0 sources on the very first
+    // request for a title (both providers still warming). One quick retry
+    // after the instance has warmed fixes it — the user never sees the error.
+    const fetchSources = (attempt: number) => {
+      fetch(`/api/source?${params}`)
+        .then(r => r.json())
+        .then(data => {
+          if (cancelled) return;
+          if (data.sources?.length > 0) {
+            setCachedSources(cacheKey, data.sources);
+            setSources(data.sources);
+            setSourcesForMovie(currentMovieKey);
+            setSourceLoading(false);
+          } else if (attempt === 0) {
+            setTimeout(() => fetchSources(1), 700);
+          } else {
+            setSourceError('No se pudo reproducir este contenido');
+            setSourceLoading(false);
+          }
+        })
+        .catch(() => {
+          if (cancelled) return;
+          if (attempt === 0) {
+            setTimeout(() => fetchSources(1), 700);
+          } else {
+            setSourceError('No se pudo cargar el contenido');
+            setSourceLoading(false);
+          }
+        });
+    };
+    fetchSources(0);
 
     return () => { cancelled = true; };
   }, [isPlaying, playerTmdbId, playerMediaType, playerSeason, playerEpisode]);
