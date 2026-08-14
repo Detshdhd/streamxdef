@@ -183,6 +183,15 @@ export default function DetailModal() {
     }
   }, [showDetail]);
 
+  // YouTube-style: the moment a movie modal opens, playback is likely next.
+  // Make sure the lazily-split player chunk (567KB, hls.js included) is
+  // downloaded NOW so pressing Play never waits for a chunk download.
+  useEffect(() => {
+    if (showDetail) {
+      import('@/components/netflix/VideoPlayer').catch(() => {});
+    }
+  }, [showDetail]);
+
   if (!showDetail || !selectedItem || isPlaying) return null;
 
   const detail = selectedItemDetail;

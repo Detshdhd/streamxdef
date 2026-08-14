@@ -298,6 +298,10 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
         capLevelToPlayerSize: false,
         maxBufferHole: 0.5,
         startFragPrefetch: true,
+        // Skip the bandwidth-probe fragment hls.js downloads before the
+        // first frame — the EWMA estimate is enough and ABR adapts on the
+        // fly from real fragment load times.
+        testBandwidth: false,
       });
       hlsRef.current = hls;
       hls.loadSource(proxiedUrl);
@@ -937,6 +941,10 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
         capLevelToPlayerSize: false,
         maxBufferHole: 0.5,
         startFragPrefetch: true,
+        // Skip the bandwidth-probe fragment hls.js downloads before the
+        // first frame — the EWMA estimate is enough and ABR adapts on the
+        // fly from real fragment load times.
+        testBandwidth: false,
       });
       hlsRef.current = hls;
       hls.loadSource(proxiedUrl);

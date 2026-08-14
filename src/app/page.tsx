@@ -660,14 +660,13 @@ export default function Home() {
     hydrateMyList();
   }, [hydrateMyList]);
 
-  // Download the lazily-split modal/player chunks in the background once the
-  // page is interactive — the code is ready before the user clicks anything,
-  // so the dynamic import resolves instantly when a movie opens.
+  // Download the lazily-split modal/player chunks in the background
+  // IMMEDIATELY — pressing Play must never wait for a 567KB chunk download.
   useEffect(() => {
     const t = setTimeout(() => {
       import('@/components/netflix/DetailModal').catch(() => {});
       import('@/components/netflix/VideoPlayer').catch(() => {});
-    }, 1500);
+    }, 0);
     return () => clearTimeout(t);
   }, []);
 
