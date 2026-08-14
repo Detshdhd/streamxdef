@@ -670,6 +670,13 @@ export default function Home() {
     return () => clearTimeout(t);
   }, []);
 
+  // Boot the /api/source serverless function NOW so it's hot when the user
+  // presses Play — kills the cold-start penalty (measured: cold source
+  // resolution took 3.1s, warm ~1s).
+  useEffect(() => {
+    fetch('/api/source?warm=1').catch(() => {});
+  }, []);
+
   const [sections, setSections] = useState<ContentSection[]>([]);
   const [trendingItems, setTrendingItems] = useState<MediaItem[]>([]);
   const [sourceCheckedIds, setSourceCheckedIds] = useState<Set<number>>(new Set());

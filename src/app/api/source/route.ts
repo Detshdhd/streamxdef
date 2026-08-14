@@ -116,7 +116,7 @@ async function fetchVidrockSources(tmdbId: number, type: string, season?: string
             'Origin': 'https://vidrock.ru',
           },
           redirect: 'follow',
-          signal: AbortSignal.timeout(attempt === 0 ? 4000 : 6000),
+          signal: AbortSignal.timeout(attempt === 0 ? 2500 : 4000),
         });
       } catch (e) {
         console.log(`[Vidrock] API attempt ${attempt + 1} failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -374,7 +374,7 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
         'Referer': VIMEUS_DOMAIN,
       },
       redirect: 'follow',
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(3000),
     });
 
     if (!response.ok) {
@@ -642,6 +642,15 @@ export async function GET(request: NextRequest) {
   const season = searchParams.get('s');
   const episode = searchParams.get('e');
 
+  // Warm-up ping: the client fires this on page load so the serverless
+  // instance boots BEFORE the user presses Play. Returns immediately.
+  if (searchParams.get('warm')) {
+    return NextResponse.json(
+      { ok: true },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+
   if (!tmdbId || !type) {
     return NextResponse.json({ error: 'id and type required' }, { status: 400 });
   }
@@ -694,5 +703,14 @@ export async function GET(request: NextRequest) {
   }
   pruneSourceCache();
 
-  return NextResponse.json({ sources: allSources });
+  // EDGE CACHE: a successful resolution is cached by the Vercel CDN for
+  // 10 min — the player's 700ms retry, replays, and OTHER USERS watching
+  // the same title get it in ~50ms instead of another 3s cold resolution.
+  // Empty responses are NEVER cached (no-store) so a cold-start failure
+  // doesn't stick.
+  const headers = allSources.length > 0
+    ? { 'Cache-Control': 'public, s-maxage=600' }
+    : { 'Cache-Control': 'no-store' };
+
+  return NextResponse.json({ sources: allSources }, { headers });
 }
