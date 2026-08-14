@@ -350,6 +350,65 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
     };
   }, [sources, sourceIdx]);
 
+  // ─── PARALLEL SEGMENT PRELOADER (mobile) ───
+  // Same as DesktopPlayer: fetch upcoming segments ahead of playback, up to
+  // 3 in parallel, filling the browser HTTP cache so hls.js gets instant
+  // cache hits instead of ~1s proxy round trips per segment.
+  const mobilePrefetchedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    mobilePrefetchedRef.current = new Set();
+    const video = videoRef.current;
+    if (!video) return;
+
+    let active = true;
+    const tick = async () => {
+      if (!active || video.paused || video.ended) return;
+      const hls = hlsRef.current;
+      if (!hls || !hls.levels?.length) return;
+      const lvl = hls.currentLevel >= 0 ? hls.currentLevel : hls.loadLevel;
+      if (lvl == null || lvl < 0 || !hls.levels[lvl]?.url) return;
+      // hls.js types Level.url as string | string[] — normalize it
+      const plUrl = Array.isArray(hls.levels[lvl].url)
+        ? hls.levels[lvl].url[0]
+        : hls.levels[lvl].url as string;
+
+      try {
+        const res = await fetch(plUrl);
+        const text = await res.text();
+        if (!active) return;
+
+        const segs: { url: string; start: number }[] = [];
+        let t = 0;
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        for (let i = 0; i < lines.length; i++) {
+          const m = lines[i].match(/^#EXTINF:([\d.]+),?/);
+          if (m) {
+            const url = lines[i + 1];
+            if (url && !url.startsWith('#')) {
+              segs.push({ url, start: t });
+              t += parseFloat(m[1]);
+            }
+          }
+        }
+
+        const now = video.currentTime;
+        const toFetch = segs
+          .filter(s => s.start >= now - 5 && s.start < now + 70)
+          .filter(s => !mobilePrefetchedRef.current.has(s.url))
+          .slice(0, 3);
+
+        for (const s of toFetch) {
+          mobilePrefetchedRef.current.add(s.url);
+          fetch(s.url).catch(() => {});
+        }
+      } catch { /* ignore */ }
+    };
+
+    const interval = setInterval(tick, 3000);
+    tick();
+    return () => { active = false; clearInterval(interval); };
+  }, [sources, sourceIdx]);
+
   // On mobile: save progress + auto-play next episode on end (TV), and close
   // when native fullscreen exits. Mirrors DesktopPlayer's Continue Watching.
   useEffect(() => {
@@ -985,6 +1044,74 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
         hlsRef.current = null;
       }
     };
+  }, [sources, currentSource]);
+
+  // ─── PARALLEL SEGMENT PRELOADER ───
+  // The proxy path is latency-bound (browser → Vercel → CDN per segment),
+  // so hls.js's sequential downloads throttle playback on slow links. This
+  // preloader fetches upcoming segments AHEAD of playback, up to 3 in
+  // parallel, filling the browser HTTP cache (segments cacheable 24h) —
+  // hls.js then gets them as instant cache hits instead of ~1s round trips.
+  const prefetchedSegsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    prefetchedSegsRef.current = new Set();
+    const video = videoRef.current;
+    if (!video) return;
+
+    let active = true;
+    const PREFETCH_AHEAD_S = 70;  // how far ahead to fill (~12 segments)
+    const MAX_PARALLEL = 3;       // concurrent prefetches per tick
+
+    const tick = async () => {
+      if (!active || video.paused || video.ended) return;
+      const hls = hlsRef.current;
+      if (!hls || !hls.levels?.length) return;
+      const lvl = hls.currentLevel >= 0 ? hls.currentLevel : hls.loadLevel;
+      if (lvl == null || lvl < 0 || !hls.levels[lvl]?.url) return;
+      // hls.js types Level.url as string | string[] — normalize it
+      const plUrl = Array.isArray(hls.levels[lvl].url)
+        ? hls.levels[lvl].url[0]
+        : hls.levels[lvl].url as string;
+
+      try {
+        // Media playlist is browser-cached 5 min — this fetch is ~free after
+        // the first one.
+        const res = await fetch(plUrl);
+        const text = await res.text();
+        if (!active) return;
+
+        // Parse #EXTINF:<dur> + URL pairs into a timeline
+        const segs: { url: string; start: number }[] = [];
+        let t = 0;
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        for (let i = 0; i < lines.length; i++) {
+          const m = lines[i].match(/^#EXTINF:([\d.]+),?/);
+          if (m) {
+            const url = lines[i + 1];
+            if (url && !url.startsWith('#')) {
+              segs.push({ url, start: t });
+              t += parseFloat(m[1]);
+            }
+          }
+        }
+
+        const now = video.currentTime;
+        const target = now + PREFETCH_AHEAD_S;
+        const toFetch = segs
+          .filter(s => s.start >= now - 5 && s.start < target)
+          .filter(s => !prefetchedSegsRef.current.has(s.url))
+          .slice(0, MAX_PARALLEL);
+
+        for (const s of toFetch) {
+          prefetchedSegsRef.current.add(s.url);
+          fetch(s.url).catch(() => {});
+        }
+      } catch { /* playlist fetch failed — hls.js loads its own anyway */ }
+    };
+
+    const interval = setInterval(tick, 3000);
+    tick();
+    return () => { active = false; clearInterval(interval); };
   }, [sources, currentSource]);
 
   // SUBTITLE TRACK MANAGEMENT — apply subtitles to the video element
