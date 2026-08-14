@@ -131,6 +131,35 @@ export default function DetailModal() {
           try {
             sessionStorage.setItem(cacheKey, JSON.stringify({ sources, ts: Date.now() }));
           } catch { /* quota — ignore */ }
+
+          // ── WARM THE VIDEO PIPELINE ──
+          // Fetch the m3u8 + variant playlists + first segment of each
+          // variant through the proxy NOW. Two wins when the user presses
+          // Play: (1) the proxy function is already hot (no cold start),
+          // (2) segments carry Cache-Control max-age=86400, so the browser
+          // HTTP cache serves the first segments to hls.js instantly.
+          const first = sources.find(s => s.type === 'hls');
+          if (first) {
+            fetch(`/api/proxy?url=${encodeURIComponent(first.url)}`)
+              .then(r => r.text())
+              .then(m3u8 => {
+                const variantUrls = m3u8.split('\n')
+                  .map(l => l.trim())
+                  .filter(l => l.startsWith('/api/proxy?url='));
+                variantUrls.slice(0, 4).forEach(v =>
+                  fetch(v)
+                    .then(r => r.text())
+                    .then(sub => {
+                      const segs = sub.split('\n')
+                        .map(l => l.trim())
+                        .filter(l => l.startsWith('/api/proxy?url='));
+                      segs.slice(0, 2).forEach(s => fetch(s).catch(() => {}));
+                    })
+                    .catch(() => {})
+                );
+              })
+              .catch(() => {});
+          }
         }
       })
       .catch(() => {});

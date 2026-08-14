@@ -1,13 +1,19 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { Facebook, Instagram, Youtube, Play, Trash2, AlertCircle, CheckCircle, Loader2, X as XIcon, Search, Heart, Download, Sparkles } from 'lucide-react';
 import Navbar from '@/components/netflix/Navbar';
 import HeroBanner from '@/components/netflix/HeroBanner';
 import ContentRow from '@/components/netflix/ContentRow';
-import DetailModal from '@/components/netflix/DetailModal';
-import VideoPlayer from '@/components/netflix/VideoPlayer';
 import { useStore, type MediaItem, type ContinueWatchingItem, type DownloadItem } from '@/store/useStore';
+
+// Code-split the modal and player (hls.js is ~400KB) out of the initial
+// bundle — the page opens faster because it no longer ships the player
+// code on load. The chunks download in the background right after mount
+// (see the idle prefetch effect below) so opening a movie isn't delayed.
+const DetailModal = dynamic(() => import('@/components/netflix/DetailModal'), { ssr: false });
+const VideoPlayer = dynamic(() => import('@/components/netflix/VideoPlayer'), { ssr: false });
 
 interface ContentSection {
   title: string;
@@ -653,6 +659,17 @@ export default function Home() {
   useEffect(() => {
     hydrateMyList();
   }, [hydrateMyList]);
+
+  // Download the lazily-split modal/player chunks in the background once the
+  // page is interactive — the code is ready before the user clicks anything,
+  // so the dynamic import resolves instantly when a movie opens.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      import('@/components/netflix/DetailModal').catch(() => {});
+      import('@/components/netflix/VideoPlayer').catch(() => {});
+    }, 1500);
+    return () => clearTimeout(t);
+  }, []);
 
   const [sections, setSections] = useState<ContentSection[]>([]);
   const [trendingItems, setTrendingItems] = useState<MediaItem[]>([]);
