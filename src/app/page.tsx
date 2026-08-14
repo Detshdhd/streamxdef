@@ -712,44 +712,59 @@ export default function Home() {
       };
     }));
 
+    // ── LOCAL CACHE with stale-while-revalidate ──
+    // Sections are cached in localStorage (trending 5 min, lists 1 h).
+    // Repeat visits render INSTANTLY from cache; stale data is shown
+    // immediately and refreshed in the background.
+    const cacheTtl = (type: string) => type === 'trending' ? 5 * 60 * 1000 : 60 * 60 * 1000;
+
+    function readCache(type: string): { results: MediaItem[] } | null {
+      try {
+        const raw = localStorage.getItem(`tmdb:${type}`);
+        if (!raw) return null;
+        const { data, ts } = JSON.parse(raw);
+        if (!data?.results || Date.now() - ts > cacheTtl(type) * 2) {
+          localStorage.removeItem(`tmdb:${type}`);
+          return null;
+        }
+        return data;
+      } catch { return null; }
+    }
+
+    function writeCache(type: string, data: { results?: MediaItem[] }) {
+      try {
+        if (data?.results?.length) {
+          localStorage.setItem(`tmdb:${type}`, JSON.stringify({ data, ts: Date.now() }));
+        }
+      } catch { /* quota full — ignore */ }
+    }
+
     async function fetchSection(type: string) {
+      // 1. Fresh local cache → use it, no network at all
+      const cachedData = readCache(type);
+      if (cachedData) {
+        // Stale-while-revalidate: if past TTL, refresh quietly in background
+        if (Date.now() - JSON.parse(localStorage.getItem(`tmdb:${type}`)!).ts > cacheTtl(type)) {
+          fetch(`/api/tmdb?type=${type}`)
+            .then(r => r.json())
+            .then(fresh => { if (!cancelled) writeCache(type, fresh); })
+            .catch(() => {});
+        }
+        return { type, data: cachedData };
+      }
+      // 2. No cache → network (edge-cached on Vercel, so usually fast)
       const r = await fetch(`/api/tmdb?type=${type}`);
-      return { type, data: await r.json() };
+      const data = await r.json();
+      writeCache(type, data);
+      return { type, data };
     }
 
     async function loadAll() {
-      // Trending is needed for the hero, but only exists in the HOME list.
-      const hasTrending = wanted.some(s => s.type === 'trending');
-      const candidates = wanted.filter(s => s.type !== 'trending');
-
-      if (hasTrending && !fetchedTypesRef.current.has('trending')) {
-        try {
-          const t = await fetchSection('trending');
-          if (cancelled) return;
-          fetchedTypesRef.current.add('trending');
-          const trending = (t.data.results || [])
-            .filter((item: MediaItem) =>
-              item.poster_path &&
-              (item.vote_average || 0) >= MIN_RATING &&
-              (item.vote_count || 0) >= MIN_VOTE_COUNT &&
-              (item.media_type === 'movie' || item.media_type === 'tv')
-            );
-          setTrendingItems(trending);
-          const idx = wanted.findIndex(s => s.type === 'trending');
-          if (idx >= 0) {
-            setSections(prev => {
-              const next = [...prev];
-              next[idx] = { ...next[idx], data: trending, loading: false };
-              return next;
-            });
-          }
-        } catch { /* ignored */ }
-      }
-
-      // Load the rest of the visible slice in parallel, but SKIP any type
-      // already fetched (so scroll-loading never refetches an old row).
-      const toFetch = candidates.filter(s => !fetchedTypesRef.current.has(s.type));
-      const others = await Promise.all(
+      // ALL sections load in PARALLEL — including trending. The old code
+      // awaited trending before firing the rest, adding ~500ms serially.
+      // SKIP any type already fetched (scroll-loading never refetches).
+      const toFetch = wanted.filter(s => !fetchedTypesRef.current.has(s.type));
+      const results = await Promise.all(
         toFetch.map(async (section) => {
           try { return await fetchSection(section.type); }
           catch { return { type: section.type, data: { results: [] } }; }
@@ -758,15 +773,28 @@ export default function Home() {
 
       if (cancelled) return;
 
-      for (const other of others) {
-        fetchedTypesRef.current.add(other.type);
-        const items: MediaItem[] = (other.data.results || [])
+      for (const result of results) {
+        fetchedTypesRef.current.add(result.type);
+
+        // Trending feeds the hero carousel AND its own row
+        if (result.type === 'trending') {
+          const trending = (result.data.results || [])
+            .filter((item: MediaItem) =>
+              item.poster_path &&
+              (item.vote_average || 0) >= MIN_RATING &&
+              (item.vote_count || 0) >= MIN_VOTE_COUNT &&
+              (item.media_type === 'movie' || item.media_type === 'tv')
+            );
+          setTrendingItems(trending);
+        }
+
+        const items: MediaItem[] = (result.data.results || [])
           .filter((item: MediaItem) =>
             item.poster_path &&
             (item.vote_average || 0) >= MIN_RATING &&
             (item.vote_count || 0) >= MIN_VOTE_COUNT
           );
-        const idx = wanted.findIndex(s => s.type === other.type);
+        const idx = wanted.findIndex(s => s.type === result.type);
         if (idx >= 0) {
           setSections(prev => {
             const next = [...prev];

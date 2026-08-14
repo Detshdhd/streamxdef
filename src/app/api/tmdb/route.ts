@@ -20,372 +20,371 @@ async function tmdbFetch(path: string, params: Record<string, string> = {}) {
   return res.json();
 }
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const type = searchParams.get('type') || '';
-
-  try {
-    switch (type) {
+// Resolve raw TMDB data for a given type. The GET wrapper below adds
+// Cache-Control headers so the Vercel edge CDN serves repeat requests
+// in ~20ms without invoking the function or hitting TMDB upstream.
+async function resolveData(type: string, searchParams: URLSearchParams): Promise<unknown> {
+  switch (type) {
       /* ─── General ─────────────────────────────────────────────── */
       case 'trending':
-        return NextResponse.json(await tmdbFetch('/trending/all/week'));
+        return await tmdbFetch('/trending/all/week');
 
       /* ─── Movies ──────────────────────────────────────────────── */
       case 'popular-movies':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '6.0',
-        }));
+        });
       case 'top-rated':
-        return NextResponse.json(await tmdbFetch('/movie/top_rated'));
+        return await tmdbFetch('/movie/top_rated');
       case 'now-playing':
-        return NextResponse.json(await tmdbFetch('/movie/now_playing'));
+        return await tmdbFetch('/movie/now_playing');
       case 'upcoming':
-        return NextResponse.json(await tmdbFetch('/movie/upcoming'));
+        return await tmdbFetch('/movie/upcoming');
 
       /* ─── TV ──────────────────────────────────────────────────── */
       case 'popular-tv':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           sort_by: 'popularity.desc',
           'vote_count.gte': '200',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'top-rated-series':
-        return NextResponse.json(await tmdbFetch('/tv/top_rated'));
+        return await tmdbFetch('/tv/top_rated');
       case 'on-the-air':
-        return NextResponse.json(await tmdbFetch('/tv/on_the_air'));
+        return await tmdbFetch('/tv/on_the_air');
 
       /* ─── Movie Genres — best-rated + popular (no obscure films) ──
          Strategy: sort by popularity.desc with high vote_count.gte + vote_average.gte
          This ensures we get well-known, highly-rated movies — not obscure 10.0-rated films with 5 votes.
       */
       case 'action':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '28',
           sort_by: 'popularity.desc',
           'vote_count.gte': '1000',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'comedy':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '35',
           sort_by: 'popularity.desc',
           'vote_count.gte': '1000',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'horror':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '27',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '6.0',
-        }));
+        });
       case 'animation':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '16',
           sort_by: 'popularity.desc',
           'vote_count.gte': '1000',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'documentary':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '99',
           sort_by: 'popularity.desc',
           'vote_count.gte': '300',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'thriller':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '53',
           sort_by: 'popularity.desc',
           'vote_count.gte': '1000',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'romance':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '10749',
           sort_by: 'popularity.desc',
           'vote_count.gte': '1000',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'fantasy':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '14',
           sort_by: 'popularity.desc',
           'vote_count.gte': '1000',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'mystery':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '9648',
           sort_by: 'popularity.desc',
           'vote_count.gte': '1000',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'war':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '10752',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'western':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '37',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'scifi-movies':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '878',
           sort_by: 'popularity.desc',
           'vote_count.gte': '1000',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'drama-movies':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '18',
           sort_by: 'popularity.desc',
           'vote_count.gte': '1000',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'crime-movies':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '80',
           sort_by: 'popularity.desc',
           'vote_count.gte': '1000',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'adventure':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '12',
           sort_by: 'popularity.desc',
           'vote_count.gte': '1000',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'family':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '10751',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'history':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '36',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'music':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '10402',
           sort_by: 'popularity.desc',
           'vote_count.gte': '300',
           'vote_average.gte': '6.5',
-        }));
+        });
 
       /* ─── Genre Combinations & Decades ── */
       case 'action-thriller':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '28,53',
           sort_by: 'popularity.desc',
           'vote_count.gte': '1000',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'romcom':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '35,10749',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '6.0',
-        }));
+        });
       case 'horror-mystery':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '27,9648',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '6.0',
-        }));
+        });
       case 'scifi-fantasy':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '878,14',
           sort_by: 'popularity.desc',
           'vote_count.gte': '1000',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'classics-90s':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           'primary_release_date.gte': '1990-01-01',
           'primary_release_date.lte': '1999-12-31',
           sort_by: 'popularity.desc',
           'vote_count.gte': '2000',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'best-2000s':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           'primary_release_date.gte': '2000-01-01',
           'primary_release_date.lte': '2009-12-31',
           sort_by: 'popularity.desc',
           'vote_count.gte': '2000',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'best-2010s':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           'primary_release_date.gte': '2010-01-01',
           'primary_release_date.lte': '2019-12-31',
           sort_by: 'popularity.desc',
           'vote_count.gte': '2000',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'top-action-2020s':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           with_genres: '28',
           'primary_release_date.gte': '2020-01-01',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '6.5',
-        }));
+        });
       case 'highly-rated-hidden':
-        return NextResponse.json(await tmdbFetch('/discover/movie', {
+        return await tmdbFetch('/discover/movie', {
           sort_by: 'vote_average.desc',
           'vote_count.gte': '50',
           'vote_count.lte': '500',
           'vote_average.gte': '7.5',
-        }));
+        });
 
       /* ─── TV Genres — best-rated + popular ── */
       case 'drama-series':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '18',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'scifi-series':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '10765',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'crime-series':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '80',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'animation-series':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '16',
           sort_by: 'popularity.desc',
           'vote_count.gte': '300',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'comedy-series':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '35',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'mystery-series':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '9648',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'thriller-series':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '53',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'action-series':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '10759',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'war-series':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '10768',
           sort_by: 'popularity.desc',
           'vote_count.gte': '300',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'documentary-series':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '99',
           sort_by: 'popularity.desc',
           'vote_count.gte': '300',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'drama-crime-series':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '18,80',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'scifi-mystery-series':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '10765,9648',
           sort_by: 'popularity.desc',
           'vote_count.gte': '300',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'reality-series':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '10764',
           sort_by: 'popularity.desc',
           'vote_count.gte': '200',
           'vote_average.gte': '6.0',
-        }));
+        });
       case 'kids-series':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '10762',
           sort_by: 'popularity.desc',
           'vote_count.gte': '200',
           'vote_average.gte': '6.0',
-        }));
+        });
 
       /* ─── Backward compat aliases ────────────────────────────── */
       case 'drama':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '18',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'scifi':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '10765',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'crime':
-        return NextResponse.json(await tmdbFetch('/discover/tv', {
+        return await tmdbFetch('/discover/tv', {
           with_genres: '80',
           sort_by: 'popularity.desc',
           'vote_count.gte': '500',
           'vote_average.gte': '7.0',
-        }));
+        });
       case 'popular-tv-series':
-        return NextResponse.json(await tmdbFetch('/tv/popular'));
+        return await tmdbFetch('/tv/popular');
 
       /* ─── Search & Details ────────────────────────────────────── */
       case 'search': {
         const query = searchParams.get('query') || '';
-        if (!query) return NextResponse.json({ results: [] });
-        return NextResponse.json(await tmdbFetch('/search/multi', { query }));
+        if (!query) return { results: [] };
+        return await tmdbFetch('/search/multi', { query });
       }
       case 'detail-movie': {
         const id = searchParams.get('id') || '';
@@ -395,7 +394,7 @@ export async function GET(request: NextRequest) {
           tmdbFetch(`/movie/${id}/similar`),
           tmdbFetch(`/movie/${id}/videos`),
         ]);
-        return NextResponse.json({ ...details, credits, similar, videos });
+        return { ...details, credits, similar, videos };
       }
       case 'detail-tv': {
         const id = searchParams.get('id') || '';
@@ -405,17 +404,49 @@ export async function GET(request: NextRequest) {
           tmdbFetch(`/tv/${id}/similar`),
           tmdbFetch(`/tv/${id}/videos`),
         ]);
-        return NextResponse.json({ ...details, credits, similar, videos });
+        return { ...details, credits, similar, videos };
       }
       case 'season-detail': {
         const id = searchParams.get('id') || '';
         const season = searchParams.get('season') || '1';
         const data = await tmdbFetch(`/tv/${id}/season/${season}`);
-        return NextResponse.json(data);
+        return data;
       }
       default:
-        return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
+        return { __invalid: true };
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const type = searchParams.get('type') || '';
+
+  try {
+    const data = await resolveData(type, searchParams);
+
+    if (data && typeof data === 'object' && '__invalid' in data) {
+      return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
     }
+
+    // ─── EDGE CACHE TTLs ───
+    // s-maxage makes the Vercel CDN cache this response: the next request
+    // (any user, same query) is served from the edge in ~20ms with ZERO
+    // function invocations and ZERO TMDB upstream calls.
+    //   trending    → 5 min  (rotates daily-ish, 5min is plenty)
+    //   details     → 24 h   (movie/TV metadata basically never changes)
+    //   search      → 1 min  (short, queries vary)
+    //   lists/genres→ 1 h    (discover lists barely change)
+    const isTrending = type === 'trending';
+    const isDetail = type.startsWith('detail-') || type === 'season-detail';
+    const isSearch = type === 'search';
+    const sMaxage = isSearch ? 60 : isTrending ? 300 : isDetail ? 86400 : 3600;
+    const swr = isSearch ? 300 : 86400;
+
+    return NextResponse.json(data, {
+      headers: {
+        'Cache-Control': `public, s-maxage=${sMaxage}, stale-while-revalidate=${swr}`,
+      },
+    });
   } catch (error) {
     console.error('TMDB API error:', error);
     return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 });
