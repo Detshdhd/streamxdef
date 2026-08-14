@@ -65,11 +65,32 @@ export default function DetailModal() {
     loadingRef.current = true;
     fetchedIdRef.current = currentId;
 
+    // Details barely change — cache them in localStorage for 24h so opening
+    // a title for the second time is instant, even after a reload.
+    const detailCacheKey = `detail:${mediaType}:${currentId}`;
+    try {
+      const raw = localStorage.getItem(detailCacheKey);
+      if (raw) {
+        const { data: cached, ts } = JSON.parse(raw);
+        if (cached && Date.now() - ts < 24 * 60 * 60 * 1000) {
+          setDetail(cached);
+          if (mediaType === 'tv' && cached.seasons && cached.seasons.length > 0) {
+            loadSeason(currentId, 1);
+          }
+          loadingRef.current = false;
+          return;
+        }
+      }
+    } catch { /* corrupted entry — fall through to network */ }
+
     fetch(`/api/tmdb?type=detail-${mediaType}&id=${currentId}`)
       .then(res => res.json())
       .then((data: MediaDetail) => {
         if (selectedItem && selectedItem.id === currentId) {
           setDetail(data);
+          try {
+            localStorage.setItem(detailCacheKey, JSON.stringify({ data, ts: Date.now() }));
+          } catch { /* quota full — ignore */ }
           if (mediaType === 'tv' && data.seasons && data.seasons.length > 0) {
             loadSeason(currentId, 1);
           }
@@ -79,10 +100,12 @@ export default function DetailModal() {
       .finally(() => { loadingRef.current = false; });
   }, [showDetail, selectedItem?.id, isPlaying, setDetail, loadSeason, setEpisodes, selectedItem]);
 
-  // Prefetch stream sources when the detail modal opens so Play starts almost
-  // instantly. /api/source caches server-side for 10 min; warming it here means
-  // the player's own fetch (on Play) is a cache hit. Fire-and-forget — result
-  // unused here. Re-runs if the user changes season/episode (new cache key).
+  // Prefetch stream sources when the detail modal opens so Play starts
+  // INSTANTLY. The result is stored in sessionStorage under the exact key
+  // the player reads (`src:{id}:{type}:{s}:{e}`) — by the time the user
+  // presses Play (usually >1.5s of reading), the sources are already cached
+  // locally and the player skips the network fetch entirely. Re-runs when
+  // the user changes season/episode (new cache key).
   useEffect(() => {
     if (!showDetail || !selectedItem || isPlaying) return;
     const mt = selectedItem.media_type === 'tv' || selectedItem.name ? 'tv' : 'movie';
@@ -94,7 +117,23 @@ export default function DetailModal() {
     const key = params.toString();
     if (prefetchedSourceKeyRef.current === key) return;
     prefetchedSourceKeyRef.current = key;
-    fetch(`/api/source?${key}`).catch(() => {});
+
+    // Same key format the VideoPlayer uses for its source cache
+    const cacheKey = `src:${selectedItem.id}:${mt}:${selectedSeason || ''}:${selectedEpisode || ''}`;
+    // If the player already cached sources for this title, don't overwrite
+    try { if (sessionStorage.getItem(cacheKey)) return; } catch { /* ignore */ }
+
+    fetch(`/api/source?${key}`)
+      .then(r => r.json())
+      .then(data => {
+        const sources = data?.sources || [];
+        if (sources.length > 0) {
+          try {
+            sessionStorage.setItem(cacheKey, JSON.stringify({ sources, ts: Date.now() }));
+          } catch { /* quota — ignore */ }
+        }
+      })
+      .catch(() => {});
   }, [showDetail, selectedItem, isPlaying, selectedSeason, selectedEpisode]);
 
   useEffect(() => {
