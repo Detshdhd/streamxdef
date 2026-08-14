@@ -369,7 +369,17 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
       if (!active || video.paused || video.ended) return;
       const hls = hlsRef.current;
       if (!hls || !hls.levels?.length) return;
-      const lvl = hls.currentLevel >= 0 ? hls.currentLevel : hls.loadLevel;
+
+      // Only prefetch BEYOND what hls.js has buffered — no competing
+      let bufEnd = video.currentTime;
+      for (let i = 0; i < video.buffered.length; i++) {
+        if (video.buffered.start(i) <= video.currentTime && video.buffered.end(i) > bufEnd) {
+          bufEnd = video.buffered.end(i);
+        }
+      }
+      if (bufEnd - video.currentTime > 60) return;
+
+      const lvl = hls.loadLevel >= 0 ? hls.loadLevel : hls.currentLevel;
       if (lvl == null || lvl < 0 || !hls.levels[lvl]?.url) return;
       // hls.js types Level.url as string | string[] — normalize it
       const plUrl = Array.isArray(hls.levels[lvl].url)
@@ -395,11 +405,10 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
           }
         }
 
-        const now = video.currentTime;
         const toFetch = segs
-          .filter(s => s.start >= now - 5 && s.start < now + 70)
+          .filter(s => s.start >= bufEnd && s.start < bufEnd + 60)
           .filter(s => !mobilePrefetchedRef.current.has(s.url))
-          .slice(0, 3);
+          .slice(0, 4);
 
         for (const s of toFetch) {
           mobilePrefetchedRef.current.add(s.url);
@@ -408,7 +417,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
       } catch { /* ignore */ }
     };
 
-    const interval = setInterval(tick, 3000);
+    const interval = setInterval(tick, 2000);
     tick();
     return () => { active = false; clearInterval(interval); };
   }, [sources, sourceIdx]);
@@ -1067,14 +1076,26 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
     if (!video) return;
 
     let active = true;
-    const PREFETCH_AHEAD_S = 70;  // how far ahead to fill (~12 segments)
-    const MAX_PARALLEL = 3;       // concurrent prefetches per tick
+    const MAX_PARALLEL = 4;  // concurrent prefetches per tick
 
     const tick = async () => {
       if (!active || video.paused || video.ended) return;
       const hls = hlsRef.current;
       if (!hls || !hls.levels?.length) return;
-      const lvl = hls.currentLevel >= 0 ? hls.currentLevel : hls.loadLevel;
+
+      // Only prefetch when the buffer is thin AND only BEYOND what hls.js
+      // has already buffered — competing for the same segments wastes
+      // bandwidth (measured: preloader grabbed 480p junk while hls.js
+      // needed 1080p). These fetches become future cache hits instead.
+      let bufEnd = video.currentTime;
+      for (let i = 0; i < video.buffered.length; i++) {
+        if (video.buffered.start(i) <= video.currentTime && video.buffered.end(i) > bufEnd) {
+          bufEnd = video.buffered.end(i);
+        }
+      }
+      if (bufEnd - video.currentTime > 60) return; // buffer healthy — stand by
+
+      const lvl = hls.loadLevel >= 0 ? hls.loadLevel : hls.currentLevel;
       if (lvl == null || lvl < 0 || !hls.levels[lvl]?.url) return;
       // hls.js types Level.url as string | string[] — normalize it
       const plUrl = Array.isArray(hls.levels[lvl].url)
@@ -1103,10 +1124,9 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
           }
         }
 
-        const now = video.currentTime;
-        const target = now + PREFETCH_AHEAD_S;
+        // Target the window JUST BEYOND the buffer hls.js is filling
         const toFetch = segs
-          .filter(s => s.start >= now - 5 && s.start < target)
+          .filter(s => s.start >= bufEnd && s.start < bufEnd + 60)
           .filter(s => !prefetchedSegsRef.current.has(s.url))
           .slice(0, MAX_PARALLEL);
 
@@ -1117,7 +1137,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
       } catch { /* playlist fetch failed — hls.js loads its own anyway */ }
     };
 
-    const interval = setInterval(tick, 3000);
+    const interval = setInterval(tick, 2000);
     tick();
     return () => { active = false; clearInterval(interval); };
   }, [sources, currentSource]);
