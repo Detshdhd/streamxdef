@@ -27,6 +27,9 @@ interface PlayerInnerProps {
   episode?: number;
   title: string;
   preloadedSources?: SourceInfo[];
+  /** Backdrop image URL (already in browser cache from the modal) — shown
+   *  by the <video> element instantly while hls.js decodes the first frame. */
+  posterUrl?: string;
 }
 
 /* ─── Client-side source cache ──────────────────────────────────── */
@@ -129,7 +132,7 @@ function findSourceForLanguage(sources: SourceInfo[], langKey: string): number {
    MobilePlayer  —  triggers the phone's native video player
    ═══════════════════════════════════════════════════════════════════ */
 
-function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSources }: PlayerInnerProps) {
+function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSources, posterUrl }: PlayerInnerProps) {
   const closePlayer = useStore(s => s.closePlayer);
   const addToBlacklist = useStore(s => s.addToBlacklist);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -137,7 +140,11 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [sourceIdx, setSourceIdx] = useState(0);
-  const [sources, setSources] = useState<SourceInfo[]>([]);
+  // Seed with preloadedSources (wrapper cache) — video loading starts on the
+  // FIRST render instead of after a fetch-effect round trip.
+  const [sources, setSources] = useState<SourceInfo[]>(
+    preloadedSources && preloadedSources.length > 0 ? preloadedSources : []
+  );
   const closedRef = useRef(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const switchingRef = useRef(false);
@@ -535,6 +542,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
         ref={videoRef}
         className="absolute opacity-0 pointer-events-none"
         style={{ width: 1, height: 1 }}
+        poster={posterUrl}
         playsInline={false}
         autoPlay
       />
@@ -653,7 +661,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
    keyboard shortcut overlay, time tooltip on progress hover.
    ═══════════════════════════════════════════════════════════════════ */
 
-function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSources }: PlayerInnerProps) {
+function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSources, posterUrl }: PlayerInnerProps) {
   const closePlayer = useStore(s => s.closePlayer);
   const addToBlacklist = useStore(s => s.addToBlacklist);
   const updateProgress = useStore(s => s.updateProgress);
@@ -669,7 +677,11 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
   const centerPlayTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const volumeSliderRef = useRef<HTMLDivElement>(null);
 
-  const [sources, setSources] = useState<SourceInfo[]>([]);
+  // Seed with preloadedSources (wrapper cache) — video loading starts on
+  // the FIRST render instead of after a fetch-effect round trip.
+  const [sources, setSources] = useState<SourceInfo[]>(
+    preloadedSources && preloadedSources.length > 0 ? preloadedSources : []
+  );
   const [currentSource, setCurrentSource] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -1564,6 +1576,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
         ref={videoRef}
         className="absolute inset-0 w-full h-full object-contain"
         playsInline
+        poster={posterUrl}
         onClick={togglePlay}
         onDoubleClick={toggleFullscreen}
       />
@@ -2366,6 +2379,7 @@ export default function VideoPlayer() {
   const playerTitle = useStore(s => s.playerTitle);
   const directPlayUrl = useStore(s => s.directPlayUrl);
   const directPlayTitle = useStore(s => s.directPlayTitle);
+  const selectedItem = useStore(s => s.selectedItem);
   const [sources, setSources] = useState<SourceInfo[]>([]);
   const [sourceLoading, setSourceLoading] = useState(true);
   const [sourceError, setSourceError] = useState('');
@@ -2448,6 +2462,12 @@ export default function VideoPlayer() {
     season: playerSeason,
     episode: playerEpisode,
     title: playerTitle,
+    // Same w1280 URL the DetailModal loaded — always a browser-cache hit, so
+    // the <video> paints the movie backdrop INSTANTLY while hls.js decodes
+    // the first frame (YouTube-style perceived startup).
+    posterUrl: selectedItem?.backdrop_path
+      ? `https://image.tmdb.org/t/p/w1280${selectedItem.backdrop_path}`
+      : undefined,
   };
 
   const playerKey = `${playerTmdbId}-${playerMediaType}-${playerSeason}-${playerEpisode}`;
