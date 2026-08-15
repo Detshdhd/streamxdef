@@ -13,8 +13,6 @@ interface ContentRowProps {
   items: MediaItem[];
   isTopTen?: boolean;
   rowIndex?: number;
-  /** Opens the full grid view for this category ("Ver todo"). */
-  onViewAll?: () => void;
 }
 
 /* ────────────────────────────────────────────
@@ -145,7 +143,7 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
 /* ────────────────────────────────────────────
    Content Row — Horizontal scroll
    ──────────────────────────────────────────── */
-export default function ContentRow({ title, items, isTopTen, rowIndex = 0, onViewAll }: ContentRowProps) {
+export default function ContentRow({ title, items, isTopTen, rowIndex = 0 }: ContentRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(true);
@@ -171,28 +169,16 @@ export default function ContentRow({ title, items, isTopTen, rowIndex = 0, onVie
 
   return (
     <div
-      className="mb-[20px] md:mb-[28px] animate-nfx-row-enter"
+      className="mb-[34px] md:mb-[46px] animate-nfx-row-enter"
       style={mounted ? { animationDelay: `${rowIndex * 60}ms` } : undefined}
       suppressHydrationWarning
     >
-      {/* Row title — clicking it (or "Ver todo") opens the full grid */}
-      <div
-        className={`group/row flex items-center justify-between px-[3%] mb-[8px] ${onViewAll ? 'cursor-pointer' : ''}`}
-        onClick={onViewAll}
-      >
-        <h2 className="text-white font-bold text-[16px] md:text-[18px] group-hover/row:text-white/80 transition-colors duration-200 select-none flex items-center gap-2">
+      {/* Row title — red accent bar + bolder hierarchy */}
+      <div className="flex items-center gap-2.5 px-[3%] mb-[10px] md:mb-[12px]">
+        <span className="w-[3px] h-[18px] md:h-[22px] rounded-full bg-[#e50914] shadow-[0_0_12px_rgba(229,9,20,0.5)]" />
+        <h2 className="text-white font-bold text-[17px] md:text-[21px] tracking-tight select-none">
           {title}
-          <ChevronRight className="w-4 h-4 opacity-0 group-hover/row:opacity-100 transition-all duration-300 -translate-x-1 group-hover/row:translate-x-0 text-[#e50914]" />
         </h2>
-        {onViewAll && (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onViewAll(); }}
-            className="text-[11px] text-[#e50914]/60 hover:text-[#e50914] font-medium opacity-0 group-hover/row:opacity-100 transition-all duration-300 focus:opacity-100 cursor-pointer"
-          >
-            Ver todo
-          </button>
-        )}
       </div>
 
       {/* Scrollable container */}
