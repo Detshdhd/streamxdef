@@ -649,6 +649,139 @@ function DownloadsTab() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   VIEW ALL — full-screen grid for a category ("Ver todo")
+   ═══════════════════════════════════════════════════════════════════ */
+function ViewAllGrid({ section, onClose }: {
+  section: { title: string; type: string; filter: 'movie' | 'tv' | 'all' };
+  onClose: () => void;
+}) {
+  const handleCardClick = useStore((s) => s.handleCardClick);
+  const noSourceIds = useStore((s) => s.noSourceIds);
+  const [items, setItems] = useState<MediaItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch 3 pages (~60 titles) of the category in parallel
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    // Check local cache first (same key format as the home rows)
+    const cacheKey = `tmdb:${section.type}`;
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (raw) {
+        const { data } = JSON.parse(raw);
+        if (data?.results?.length) setItems(data.results);
+      }
+    } catch { /* ignore */ }
+
+    Promise.all(
+      [1, 2, 3].map(p =>
+        fetch(`/api/tmdb?type=${section.type}&page=${p}`)
+          .then(r => r.json())
+          .catch(() => ({ results: [] }))
+      )
+    ).then(pages => {
+      if (cancelled) return;
+      const seen = new Set<number>();
+      const all: MediaItem[] = [];
+      for (const page of pages) {
+        for (const item of (page.results || []) as MediaItem[]) {
+          if (seen.has(item.id)) continue;
+          seen.add(item.id);
+          // Same quality filters as the home rows
+          if (!item.poster_path) continue;
+          if ((item.vote_average || 0) < MIN_RATING) continue;
+          if ((item.vote_count || 0) < MIN_VOTE_COUNT) continue;
+          if (item.media_type && item.media_type !== 'movie' && item.media_type !== 'tv') continue;
+          if (section.filter !== 'all' && item.media_type && item.media_type !== section.filter) continue;
+          if (noSourceIds.has(item.id)) continue;
+          all.push(item);
+        }
+      }
+      setItems(all);
+      setLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [section.type, section.filter, noSourceIds]);
+
+  // ESC to close + lock body scroll
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[1500] bg-[#0a0a0f] overflow-y-auto animate-nfx-fade-in">
+      <div className="sticky top-0 z-10 bg-[#0a0a0f]/95 backdrop-blur-sm border-b border-white/[0.06] px-[3%] py-4 flex items-center justify-between">
+        <h1 className="nfx-font-hero text-[22px] md:text-[28px] text-white">{section.title}</h1>
+        <button
+          onClick={onClose}
+          className="w-10 h-10 rounded-full bg-white/[0.07] hover:bg-white/[0.15] flex items-center justify-center text-white/70 hover:text-white transition-all active:scale-95 cursor-pointer"
+          aria-label="Cerrar"
+        >
+          <XIcon className="w-5 h-5" />
+        </button>
+      </div>
+
+      <div className="px-[3%] py-6">
+        {loading && items.length === 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+            {Array.from({ length: 18 }).map((_, i) => (
+              <div key={i} className="aspect-[2/3] rounded-lg bg-white/[0.04] animate-pulse" style={{ animationDelay: `${i * 60}ms` }} />
+            ))}
+          </div>
+        ) : items.length === 0 ? (
+          <p className="text-white/40 text-center py-20">No hay contenido disponible</p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="cursor-pointer group"
+                onClick={() => handleCardClick(item)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleCardClick(item); }}
+              >
+                <div className="nfx-card-img">
+                  {item.poster_path ? (
+                    <img
+                      src={`https://image.tmdb.org/t/p/w185${item.poster_path}`}
+                      alt={item.title || item.name || ''}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-[#22222a] flex items-center justify-center">
+                      <span className="text-white/20 text-xs">{item.title || item.name}</span>
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-[#e50914]/20 flex items-center justify-center border border-[#e50914]/30">
+                      <Play className="w-6 h-6 fill-white text-white ml-0.5" />
+                    </div>
+                  </div>
+                </div>
+                <p className="text-white/70 text-[13px] mt-2 truncate group-hover:text-white transition-colors">
+                  {item.title || item.name}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    MAIN HOME COMPONENT
    ═══════════════════════════════════════════════════════════════════ */
 
@@ -679,6 +812,7 @@ export default function Home() {
 
   const [sections, setSections] = useState<ContentSection[]>([]);
   const [trendingItems, setTrendingItems] = useState<MediaItem[]>([]);
+  const [viewAll, setViewAll] = useState<{ title: string; type: string; filter: 'movie' | 'tv' | 'all' } | null>(null);
   const [sourceCheckedIds, setSourceCheckedIds] = useState<Set<number>>(new Set());
   const sourceCheckInProgress = useRef(false);
   // Avoid SSR/CSR hydration mismatch: continue-watching comes from
@@ -1057,6 +1191,7 @@ export default function Home() {
                 items={section.data}
                 isTopTen={section.isTopTen}
                 rowIndex={idx}
+                onViewAll={() => setViewAll({ title: section.title, type: section.type, filter: section.filter || 'all' })}
               />
             )
           )
@@ -1072,6 +1207,7 @@ export default function Home() {
 
       <DetailModal />
       <VideoPlayer />
+      {viewAll && <ViewAllGrid section={viewAll} onClose={() => setViewAll(null)} />}
     </div>
   );
 }

@@ -4,12 +4,20 @@ const TMDB_BASE = 'https://api.themoviedb.org/3';
 const API_KEY = process.env.TMDB_API_KEY!;
 const BEARER = process.env.TMDB_BEARER!;
 
+// Page override for list endpoints — set by GET when the client requests
+// ?page=N (used by the "Ver todo" grid). Only applied to /discover and
+// /trending paths so detail endpoints are never affected.
+let PAGE_OVERRIDE: string | null = null;
+
 async function tmdbFetch(path: string, params: Record<string, string> = {}) {
   const url = new URL(`${TMDB_BASE}${path}`);
   url.searchParams.set('api_key', API_KEY);
   url.searchParams.set('language', 'es-ES');
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, v);
+  }
+  if (PAGE_OVERRIDE && (path.startsWith('/discover') || path.startsWith('/trending'))) {
+    url.searchParams.set('page', PAGE_OVERRIDE);
   }
   const res = await fetch(url.toString(), {
     headers: { 'Authorization': `Bearer ${BEARER}`, 'Content-Type': 'application/json' },
@@ -422,7 +430,9 @@ export async function GET(request: NextRequest) {
   const type = searchParams.get('type') || '';
 
   try {
+    PAGE_OVERRIDE = searchParams.get('page');
     const data = await resolveData(type, searchParams);
+    PAGE_OVERRIDE = null;
 
     if (data && typeof data === 'object' && '__invalid' in data) {
       return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
@@ -448,6 +458,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
+    PAGE_OVERRIDE = null;
     console.error('TMDB API error:', error);
     return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 });
   }

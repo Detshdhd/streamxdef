@@ -13,6 +13,8 @@ interface ContentRowProps {
   items: MediaItem[];
   isTopTen?: boolean;
   rowIndex?: number;
+  /** Opens the full grid view for this category ("Ver todo"). */
+  onViewAll?: () => void;
 }
 
 /* ────────────────────────────────────────────
@@ -143,7 +145,7 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
 /* ────────────────────────────────────────────
    Content Row — Horizontal scroll
    ──────────────────────────────────────────── */
-export default function ContentRow({ title, items, isTopTen, rowIndex = 0 }: ContentRowProps) {
+export default function ContentRow({ title, items, isTopTen, rowIndex = 0, onViewAll }: ContentRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(true);
@@ -173,15 +175,24 @@ export default function ContentRow({ title, items, isTopTen, rowIndex = 0 }: Con
       style={mounted ? { animationDelay: `${rowIndex * 60}ms` } : undefined}
       suppressHydrationWarning
     >
-      {/* Row title */}
-      <div className="group/row flex items-center justify-between px-[3%] mb-[8px] cursor-pointer">
+      {/* Row title — clicking it (or "Ver todo") opens the full grid */}
+      <div
+        className={`group/row flex items-center justify-between px-[3%] mb-[8px] ${onViewAll ? 'cursor-pointer' : ''}`}
+        onClick={onViewAll}
+      >
         <h2 className="text-white font-bold text-[16px] md:text-[18px] group-hover/row:text-white/80 transition-colors duration-200 select-none flex items-center gap-2">
           {title}
           <ChevronRight className="w-4 h-4 opacity-0 group-hover/row:opacity-100 transition-all duration-300 -translate-x-1 group-hover/row:translate-x-0 text-[#e50914]" />
         </h2>
-        <span className="text-[11px] text-[#e50914]/60 font-medium opacity-0 group-hover/row:opacity-100 transition-all duration-300">
-          Ver todo
-        </span>
+        {onViewAll && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onViewAll(); }}
+            className="text-[11px] text-[#e50914]/60 hover:text-[#e50914] font-medium opacity-0 group-hover/row:opacity-100 transition-all duration-300 focus:opacity-100 cursor-pointer"
+          >
+            Ver todo
+          </button>
+        )}
       </div>
 
       {/* Scrollable container */}
