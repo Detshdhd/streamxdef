@@ -27,7 +27,11 @@ export const preferredRegion = 'iad1';
 interface ResolvedSource {
   name: string;
   url: string;
-  type: 'hls' | 'mp4';
+  // 'hls' | 'mp4' → direct stream URL played by our hls.js player.
+  // 'embed' → third-party player page (vimeos.net) rendered in an iframe;
+  //           its signed tokens only validate when the page itself loads in
+  //           the user's browser, so we embed rather than extract.
+  type: 'hls' | 'mp4' | 'embed';
   quality?: string;
   language: string | null;
 }
@@ -204,7 +208,10 @@ interface VimeusEmbed {
   url: string;
 }
 
-const BROWSER_ONLY_PROVIDERS = ['voe', 'filemoon', 'vimeos', 'diasfem', 'sblanh', 'watchsb', 'sbfull', 'sbfast', 'suzihaza', 'fembed', 'streamwish', 'doodstream', 'mixdrop', 'streamtape'];
+// 'vimeos' REMOVED from browser-only: it is now Vimeus' primary (and often
+// only) Latino provider, and its stream IS server-side extractable — the
+// signed master.m3u8 sits inside a P.A.C.K.E.R.-packed jwplayer setup.
+const BROWSER_ONLY_PROVIDERS = ['voe', 'filemoon', 'diasfem', 'sblanh', 'watchsb', 'sbfull', 'sbfast', 'suzihaza', 'fembed', 'streamwish', 'doodstream', 'mixdrop', 'streamtape'];
 const DEAD_PROVIDERS = ['hlswish'];
 
 function isTestVideoUrl(url: string): boolean {
@@ -222,7 +229,7 @@ function isBrowserOnlyProvider(url: string): boolean {
   return BROWSER_ONLY_PROVIDERS.some(p => url.toLowerCase().includes(p));
 }
 
-async function extractStreamFromEmbed(embedUrl: string): Promise<{ streamUrl: string | null; streamType: 'hls' | 'mp4' | null }> {
+async function extractStreamFromEmbed(embedUrl: string, timeoutMs = 2000): Promise<{ streamUrl: string | null; streamType: 'hls' | 'mp4' | null }> {
   try {
     const response = await fetch(embedUrl, {
       headers: {
@@ -232,7 +239,7 @@ async function extractStreamFromEmbed(embedUrl: string): Promise<{ streamUrl: st
         'Referer': VIMEUS_DOMAIN,
       },
       redirect: 'follow',
-      signal: AbortSignal.timeout(2000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
 
     if (!response.ok) return { streamUrl: null, streamType: null };
@@ -336,13 +343,9 @@ async function extractStreamFromEmbed(embedUrl: string): Promise<{ streamUrl: st
 }
 
 function getServerDisplayName(embed: VimeusEmbed, index: number): string {
-  if (embed.server && embed.server !== 'Online' && embed.server.length > 1) {
-    const serverName = embed.server.charAt(0).toUpperCase() + embed.server.slice(1);
-    const langLabel = embed.lang ? ` (${embed.lang})` : '';
-    return `${serverName}${langLabel}`;
-  }
-
   const url = embed.url.toLowerCase();
+  // vimeos is Vimeus' own player — usually dual-audio (Español/English)
+  if (url.includes('vimeos.')) return `Vega${embed.lang ? ` (${embed.lang})` : ' (Latino)'}`;
   if (url.includes('goodstream')) return `Orion${embed.lang ? ` (${embed.lang})` : ''}`;
   if (url.includes('voe')) return `Atlas${embed.lang ? ` (${embed.lang})` : ''}`;
   if (url.includes('filemoon')) return `Titan${embed.lang ? ` (${embed.lang})` : ''}`;
@@ -462,18 +465,36 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
 
     const allSources: ResolvedSource[] = [];
 
-    // Try server-side extractable embeds first (goodstream, streamtape, mixdrop, dood).
+    // VIMEOS.NET (Vimeus' own player) — pass through as an 'embed' source.
+    // Its signed stream tokens are minted per page-load and only validate
+    // when the player page itself loads in the END USER's browser, so any
+    // server-side extraction would produce a token the user's browser will
+    // reject. The client renders these in an iframe (like Vimeus does).
+    const vimeosEmbeds = sortedEmbeds.filter(e => e.url.includes('vimeos.'));
+    for (const embed of vimeosEmbeds) {
+      console.log(`[Vimeus] ✅ vimeos embed passthrough: ${embed.url}`);
+      allSources.push({
+        name: getServerDisplayName(embed, 0),
+        url: embed.url,
+        type: 'embed',
+        quality: embed.quality || undefined,
+        language: embed.lang || 'Latino',
+      });
+    }
+    const extractableEmbeds = sortedEmbeds.filter(e => !e.url.includes('vimeos.'));
+
+    // Try server-side extractable embeds (goodstream, streamtape, mixdrop, dood).
     // Run all extractions in PARALLEL — sequential extraction was the dominant cost
     // of a cold /api/source request (up to 6 embeds × ~1.5s = ~9s). Promise.all keeps
     // the results in input order so display names/indices stay stable.
     const MAX_EMBEDS = 3;
-    const embedsToTry = sortedEmbeds.slice(0, MAX_EMBEDS);
+    const embedsToTry = extractableEmbeds.slice(0, MAX_EMBEDS);
 
     const extractedResults = await Promise.all(
       embedsToTry.map(async (embed, idx) => ({
         embed,
         idx,
-        extracted: await extractStreamFromEmbed(embed.url),
+        extracted: await extractStreamFromEmbed(embed.url, 2000),
       }))
     );
 
@@ -667,10 +688,11 @@ export async function GET(request: NextRequest) {
   // WAIT-FOR-BOTH RULE — fire Vidrock + Vimeus in parallel and wait for BOTH
   // to finish (up to a 5s ceiling). On serverless (Vercel) there's no
   // persistent memory between requests, so we can't rely on a background
-  // cache upgrade to deliver Spanish sources on a later call. In practice
-  // both providers finish quickly (Vidrock ~0.7s, Vimeus ~1.2s), so the
-  // total wait is still fast.
-  const HARD_CEILING = 3000;
+  // cache upgrade to deliver Spanish sources on a later call. Typical totals
+  // are fast (Vidrock ~0.7s, Vimeus data page ~0.4s — vimeos needs no
+  // server-side fetch anymore); the ceiling only matters when a provider
+  // stalls, where waiting beats returning nothing.
+  const HARD_CEILING = 5000;
   const empty: ResolvedSource[] = [];
 
   const vidrockP = fetchVidrockSources(parseInt(tmdbId, 10), type, season || undefined, episode || undefined)

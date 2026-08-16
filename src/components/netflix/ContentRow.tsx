@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Play, Heart, Star } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Heart } from 'lucide-react';
 import { useStore, type MediaItem } from '@/store/useStore';
 
 interface ContentRowProps {
@@ -12,7 +12,9 @@ interface ContentRowProps {
 }
 
 /* ────────────────────────────────────────────
-   Content Card — Friendly with warm accents
+   Content Card — Apple TV+ style
+   Landscape 16:9 tile; title + meta live INSIDE
+   the artwork, centered over a bottom gradient.
    ──────────────────────────────────────────── */
 function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number; isTopTen?: boolean }) {
   const handleCardClick = useStore((s) => s.handleCardClick);
@@ -24,11 +26,9 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
 
   const isFav = myList.some(m => m.id === item.id);
   const title = item.title || item.name || '';
-  const rating = item.vote_average ? item.vote_average.toFixed(1) : null;
   const year = (item.release_date || item.first_air_date || '').substring(0, 4);
-  const isHighRated = item.vote_average >= 7.5;
 
-  // Disney+-style: landscape 16:9 tiles, wider than portrait posters
+  // Apple TV+ tiles: landscape 16:9, wider than portrait posters
   const cardWidth = 'w-[230px] sm:w-[280px] md:w-[310px] lg:w-[330px]';
 
   // Prefer the backdrop for landscape tiles; fall back to the poster
@@ -38,10 +38,9 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
   if (!imgPath || imgError) {
     return (
       <div className={`${cardWidth} shrink-0`}>
-        <div className="nfx-card-img nfx-card-img-landscape flex items-center justify-center">
-          <span className="text-white/10 text-xs text-center px-3 leading-snug">{title}</span>
+        <div className="nfx-card-img nfx-card-img-landscape flex items-end justify-center pb-3">
+          <span className="text-white/25 text-[11px] font-semibold text-center px-4 leading-snug uppercase tracking-wide">{title}</span>
         </div>
-        <p className="text-white text-[13px] font-medium mt-2 truncate">{title}</p>
       </div>
     );
   }
@@ -70,12 +69,23 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
           loading="lazy"
         />
 
-        {/* Top-10 badge inside the tile (Disney+ puts rank on the artwork) */}
+        {/* Top-10 rank on the artwork (Apple TV+: white on dark glass) */}
         {isTopTen && index < 10 && (
-          <div className="absolute top-2 left-2 z-20 flex items-center gap-1 bg-black/60 backdrop-blur-sm rounded-md px-2 py-[3px]">
-            <span className="text-[#e50914] text-[12px] font-black leading-none">{index + 1}</span>
+          <div className="absolute top-2 left-2 z-20 bg-black/55 backdrop-blur-sm rounded-md px-2 py-[3px]">
+            <span className="text-white text-[12px] font-bold leading-none">{index + 1}</span>
           </div>
         )}
+
+        {/* ── Apple TV+: title bold + centered on the artwork, over a
+             bottom gradient — always visible ── */}
+        <div className="absolute bottom-0 left-0 right-0 z-[5] bg-gradient-to-t from-black/90 via-black/45 to-transparent pt-8 pb-2.5 px-3 pointer-events-none">
+          <p className="text-white text-[13px] md:text-[13.5px] font-bold leading-tight text-center line-clamp-2" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7)' }}>
+            {title}
+          </p>
+          {year && (
+            <p className="text-white/55 text-[10.5px] mt-0.5 text-center">{year}</p>
+          )}
+        </div>
 
         {/* ── Hover overlay ── */}
         <div
@@ -83,44 +93,28 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
             isHovered ? 'opacity-100' : 'opacity-0'
           }`}
         >
-          <div className="absolute inset-0 bg-black/35" />
+          <div className="absolute inset-0 bg-black/30" />
 
-          {/* Heart button — top-right */}
+          {/* Heart button — top-right (Apple: dark glass, white icon) */}
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); toggleMyList(item); }}
-            className="absolute top-2 right-2 z-20 w-[30px] h-[30px] rounded-full glass flex items-center justify-center hover:bg-[#e50914]/20 transition-all duration-200 hover:scale-110"
+            className="absolute top-2 right-2 z-20 w-[30px] h-[30px] rounded-full bg-black/55 backdrop-blur-md flex items-center justify-center hover:bg-black/75 transition-all duration-200 hover:scale-110"
             aria-label={isFav ? 'Quitar de Mi Lista' : 'Agregar a Mi Lista'}
           >
             <Heart
               className={`w-4 h-4 transition-all duration-200 ${
-                isFav ? 'fill-[#e50914] text-[#e50914]' : 'text-white/80'
+                isFav ? 'fill-white text-white' : 'text-white/85'
               }`}
             />
           </button>
 
-          {/* Play button — center */}
+          {/* Play button — center (Apple: white disc, black glyph) */}
           <div className="absolute inset-0 flex items-center justify-center z-10">
-            <div className="w-[46px] h-[46px] rounded-full bg-[#e50914]/25 backdrop-blur-sm flex items-center justify-center border border-[#e50914]/40 hover:bg-[#e50914]/40 transition-all duration-200 hover:scale-105 shadow-[0_0_18px_rgba(229,9,20,0.25)]">
-              <Play className="w-[18px] h-[18px] fill-white text-white ml-[2px]" />
+            <div className="w-[44px] h-[44px] rounded-full bg-white/95 flex items-center justify-center transition-all duration-200 group-hover:scale-105 shadow-2xl">
+              <Play className="w-[18px] h-[18px] fill-black text-black ml-[2px]" />
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Disney+-style: title + metadata ALWAYS visible below the artwork */}
-      <div className="mt-2 px-0.5">
-        <p className="text-white text-[13px] font-medium leading-tight truncate group-hover:text-white transition-colors">
-          {title}
-        </p>
-        <div className="flex items-center gap-1.5 mt-[3px] text-[11px]">
-          {year && <span className="text-white/40">{year}</span>}
-          {rating && (
-            <span className={`flex items-center gap-0.5 ${isHighRated ? 'text-[#34d399]' : 'text-white/40'}`}>
-              <Star className={`w-[10px] h-[10px] ${isHighRated ? 'fill-[#34d399]' : 'fill-white/40'}`} />
-              {rating}
-            </span>
-          )}
         </div>
       </div>
     </div>
@@ -160,11 +154,19 @@ export default function ContentRow({ title, items, isTopTen, rowIndex = 0 }: Con
       style={mounted ? { animationDelay: `${rowIndex * 60}ms` } : undefined}
       suppressHydrationWarning
     >
-      {/* Row title — Disney+ style: clean white, medium weight */}
+      {/* Row title — Apple TV+ style: medium weight + right chevron.
+           Clicking it scrolls the row forward (the chevron signals "more"). */}
       <div className="px-[3%] mb-[10px] md:mb-[12px]">
-        <h2 className="text-white font-semibold text-[17px] md:text-[20px] tracking-tight select-none">
-          {title}
-        </h2>
+        <button
+          type="button"
+          onClick={() => scroll('right')}
+          className="group/header flex items-center gap-1.5 select-none"
+        >
+          <h2 className="text-white font-semibold text-[17px] md:text-[20px] tracking-tight group-hover/header:text-white/90 transition-colors">
+            {title}
+          </h2>
+          <ChevronRight className="w-[18px] h-[18px] md:w-5 md:h-5 text-white/40 group-hover/header:text-white/80 transition-all duration-200 group-hover/header:translate-x-0.5" />
+        </button>
       </div>
 
       {/* Scrollable container */}

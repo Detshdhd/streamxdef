@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Hls from 'hls.js';
 import {
   ArrowLeft, Maximize, Minimize, Play, Pause,
-  SkipBack, SkipForward, Volume2, VolumeX, Volume1, AlertCircle, Subtitles, Settings2,
+  SkipBack, SkipForward, Volume2, VolumeX, Volume1, AlertCircle, Subtitles, Settings2, Languages,
 } from 'lucide-react';
 import {
   useStore,
@@ -15,7 +15,10 @@ import {
 interface SourceInfo {
   name: string;
   url: string;
-  type: 'hls' | 'mp4';
+  // 'embed' = third-party player page (vimeos.net Latino) rendered in an
+  // iframe: its signed tokens only validate when the page loads in the
+  // user's browser, so our hls.js player can't take over the stream.
+  type: 'hls' | 'mp4' | 'embed';
   quality?: string;
   language: string | null;
 }
@@ -61,6 +64,13 @@ function setCachedSources(key: string, sources: SourceInfo[]) {
 
 function proxyUrl(originalUrl: string): string {
   const url = originalUrl.toLowerCase();
+
+  // vimeos CDN (Vimeus Latino, rotates TLDs: .net/.zip/…): blocks non-browser
+  // TLS fingerprints — our server proxy gets 403 — but sends
+  // Access-Control-Allow-Origin: *. The browser MUST stream these DIRECTLY.
+  if (url.includes('vimeos.')) {
+    return originalUrl;
+  }
 
   // These domains MUST go through our proxy (need correct Referer)
   const mustProxy = ['hakunaymatata', 'goodstream', 'voe', 'filemoon', 'ironwallnet', 'vidrock', 'workers.dev', 'vidvault', '1shows.app', 'tiktokcdn'];
@@ -126,6 +136,122 @@ function getAvailableLanguages(sources: SourceInfo[]): { key: string; label: str
 
 function findSourceForLanguage(sources: SourceInfo[], langKey: string): number {
   return sources.findIndex(src => getLangKey(src.language) === langKey);
+}
+
+/* ─── EmbedPlayer ────────────────────────────────────────────────────
+   Renders a third-party player page (vimeos.net — Spanish/Latino) in a
+   fullscreen iframe. These providers sign their stream tokens per
+   page-load bound to the viewing browser, so their own player must run
+   in their origin; we provide the chrome (title, back, server picker)
+   around it. */
+function EmbedPlayer({
+  url,
+  title,
+  sources,
+  currentSource,
+  onSelectSource,
+  onClose,
+}: {
+  url: string;
+  title: string;
+  sources: SourceInfo[];
+  currentSource: number;
+  onSelectSource: (idx: number) => void;
+  onClose: () => void;
+}) {
+  const [showServers, setShowServers] = useState(false);
+  const [showTopBar, setShowTopBar] = useState(true);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-hide the top bar, like the native player controls
+  const bumpTopBar = () => {
+    setShowTopBar(true);
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setShowTopBar(false), 3500);
+  };
+
+  useEffect(() => {
+    bumpTopBar();
+    return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
+  }, []);
+
+  const current = sources[currentSource];
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] bg-black select-none"
+      style={{ overflow: 'hidden' }}
+      onMouseMove={bumpTopBar}
+      onTouchStart={bumpTopBar}
+    >
+      <iframe
+        key={url}
+        src={url}
+        className="absolute inset-0 w-full h-full border-0"
+        allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+        allowFullScreen
+        title={title}
+      />
+
+      {/* Top bar — title, source badge, close */}
+      <div
+        className={`absolute top-0 left-0 right-0 z-10 flex items-center gap-3 px-4 md:px-6 py-4 transition-all duration-300 ${
+          showTopBar ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.75), transparent)' }}
+      >
+        <button
+          onClick={onClose}
+          className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+          aria-label="Cerrar"
+        >
+          <ArrowLeft className="w-5 h-5 text-white" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <p className="text-white text-base md:text-lg font-semibold truncate">{title}</p>
+          {current && (
+            <p className="text-white/50 text-xs">{current.name} · Reproductor externo</p>
+          )}
+        </div>
+        <button
+          onClick={() => setShowServers(s => !s)}
+          className="h-10 px-4 rounded-full bg-white/10 hover:bg-white/20 flex items-center gap-2 transition-colors"
+        >
+          <Languages className="w-4 h-4 text-white" />
+          <span className="text-white text-sm font-medium hidden sm:inline">Servidores</span>
+        </button>
+      </div>
+
+      {/* Server / language picker */}
+      {showServers && (
+        <div className="absolute top-[68px] right-4 md:right-6 z-20 w-64 max-h-[60vh] overflow-y-auto rounded-2xl border border-white/10 bg-[#0a0a0f]/95 backdrop-blur-xl shadow-2xl p-2">
+          {sources.map((s, idx) => (
+            <button
+              key={`${s.name}-${idx}`}
+              onClick={() => { onSelectSource(idx); setShowServers(false); }}
+              className={`w-full text-left px-4 py-3 rounded-xl transition-colors ${
+                idx === currentSource ? 'bg-[#e50914]/20 text-white' : 'text-white/70 hover:bg-white/5'
+              }`}
+            >
+              <span className="text-sm font-medium block">{s.name}</span>
+              <span className="text-[11px] text-white/40">{getLangDisplayName(s.language)}{s.quality ? ` · ${s.quality}` : ''}{s.type === 'embed' ? ' · externo' : ''}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Small hint that playback controls live inside the embedded player */}
+      <div
+        className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-10 transition-opacity duration-500 ${
+          showTopBar ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
+        <p className="text-white/40 text-xs px-4 py-2 rounded-full bg-black/50 backdrop-blur-sm">
+          Usa los controles del reproductor para reproducir
+        </p>
+      </div>
+    </div>
+  );
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -212,6 +338,13 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
     if (sources.length === 0) return;
     const src = sources[sourceIdx];
     if (!src) return;
+
+    // Embed sources render a third-party iframe player — nothing to load.
+    if (src.type === 'embed') {
+      setLoading(false);
+      setError('');
+      return;
+    }
 
     const video = videoRef.current;
     if (!video) return;
@@ -535,6 +668,21 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
       document.documentElement.style.overflow = '';
     };
   }, []);
+
+  // EMBED SOURCE — third-party player iframe (vimeos Latino): their player
+  // provides the controls; we only wrap it with title / back / server list.
+  if (sources[sourceIdx]?.type === 'embed') {
+    return (
+      <EmbedPlayer
+        url={sources[sourceIdx].url}
+        title={title}
+        sources={sources}
+        currentSource={sourceIdx}
+        onSelectSource={setSourceIdx}
+        onClose={closePlayer}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center">
@@ -875,6 +1023,16 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
     if (sources.length === 0) return;
     const src = sources[currentSource];
     if (!src) return;
+
+    // Embed sources render a third-party iframe player — nothing for hls.js
+    // to load. Force the next hls source to reload fully (the <video> will
+    // have remounted after leaving the iframe view).
+    if (src.type === 'embed') {
+      prevSourceRef.current = -1;
+      setLoading(false);
+      setError('');
+      return;
+    }
 
     const video = videoRef.current;
     if (!video) return;
@@ -1557,12 +1715,47 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
     setLangMenuOpen(false);
   };
 
+  const changeSource = (idx: number) => {
+    if (idx < 0 || idx === currentSource) return;
+    // Save current position before tearing down so we can resume there.
+    const video = videoRef.current;
+    if (video && video.currentTime > 0) {
+      resumeTimeRef.current = video.currentTime;
+    }
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+    if (video) {
+      video.removeAttribute('src');
+      video.load();
+    }
+    prevSourceRef.current = -1;
+    setCurrentSource(idx);
+  };
+
   // Current source info (used by the language menu)
   const currentSourceInfo = sources[currentSource];
 
 
   const soundBars = !isMuted && volume > 0;
 
+
+  // EMBED SOURCE — the chosen server is a third-party player page (vimeos
+  // Latino). Render its fullscreen iframe instead of our hls.js player;
+  // playback controls live inside the embedded player.
+  if (currentSourceInfo?.type === 'embed') {
+    return (
+      <EmbedPlayer
+        url={currentSourceInfo.url}
+        title={title}
+        sources={sources}
+        currentSource={currentSource}
+        onSelectSource={changeSource}
+        onClose={handleClose}
+      />
+    );
+  }
 
   // RENDER
   return (

@@ -24,7 +24,7 @@ const nextConfig: NextConfig = {
             value: [
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-              "frame-src 'self' https://vimeus.com https://*.vimeus.com https://*.goodstream.one https://*.voe.sx https://*.filemoon.sx https://*.vimeos.net https://*.streamtape.com https://*.doodstream.com https://*.mixdrop.ag https://vidrock.ru",
+              "frame-src 'self' https://vimeus.com https://*.vimeus.com https://vimeos.net https://*.vimeos.net https://*.vimeos.zip https://*.goodstream.one https://*.voe.sx https://*.filemoon.sx https://*.streamtape.com https://*.doodstream.com https://*.mixdrop.ag https://vidrock.ru",
               "img-src 'self' data: https://image.tmdb.org https://vimeus.com",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' data: https://fonts.gstatic.com",
