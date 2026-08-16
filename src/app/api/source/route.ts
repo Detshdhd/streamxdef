@@ -620,6 +620,12 @@ function combineAndSort(vimeusSources: ResolvedSource[], vidrockSources: Resolve
   }
 
   allSources.sort((a, b) => {
+    // Third-party embed players (vimeos Latino, with their own ads) are
+    // LAST-RESORT: only reachable when the user explicitly picks Spanish
+    // from the language menu. Never the auto-loaded first source.
+    const embedDiff = (a.type === 'embed' ? 1 : 0) - (b.type === 'embed' ? 1 : 0);
+    if (embedDiff !== 0) return embedDiff;
+
     // Primary: CDN health rank (0 healthy Vidrock → 9 dead 1shows.app)
     const rankDiff = getSourceRank(a.url) - getSourceRank(b.url);
     if (rankDiff !== 0) return rankDiff;

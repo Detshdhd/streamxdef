@@ -222,11 +222,14 @@ function ContinueWatchingRow({ items }: { items: ContinueWatchingItem[] }) {
   };
 
   return (
-    <div className="mb-[20px] md:mb-[28px]">
-      <div className="px-[3%] mb-[8px] md:mb-[10px]">
-        <h2 className="text-white font-semibold text-[17px] md:text-[20px] tracking-tight select-none">Seguir viendo</h2>
+    <div className="mb-[34px] md:mb-[46px]">
+      {/* Header matching the other rows (chevron affordance) */}
+      <div className="px-[3%] mb-[10px] md:mb-[12px]">
+        <h2 className="text-white font-semibold text-[17px] md:text-[20px] tracking-tight select-none flex items-center gap-1.5">
+          Seguir viendo
+        </h2>
       </div>
-      <div className="flex gap-[10px] md:gap-[12px] overflow-x-auto px-[3%] pb-2 scrollbar-hide">
+      <div className="flex gap-[10px] md:gap-[12px] overflow-x-auto px-[3%] pb-1 scrollbar-hide">
         {items.map((cw) => {
           const pct = cw.progress.duration > 0 ? Math.min(100, (cw.progress.watched / cw.progress.duration) * 100) : 0;
           const remaining = cw.progress.duration - cw.progress.watched;
@@ -238,43 +241,43 @@ function ContinueWatchingRow({ items }: { items: ContinueWatchingItem[] }) {
           return (
             <div
               key={cw.id}
-              className="nfx-card-img nfx-card-img-landscape shrink-0 w-[230px] sm:w-[280px] md:w-[310px] lg:w-[330px] cursor-pointer group relative"
+              className="shrink-0 w-[230px] sm:w-[280px] md:w-[310px] lg:w-[330px] cursor-pointer group"
               onClick={() => handleClick(cw)}
             >
-              <div className="absolute inset-0">
-                {img && (
-                  <img src={img} alt={cw.title} className="w-full h-full object-cover" loading="lazy" />
-                )}
-              </div>
-              {/* Play button on hover (Apple: white disc, black glyph) */}
-              <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <div className="w-12 h-12 rounded-full bg-white/95 flex items-center justify-center shadow-2xl">
-                  <Play className="w-5 h-5 fill-black text-black ml-0.5" />
+              <div className="nfx-card-img nfx-card-img-landscape relative">
+                <div className="absolute inset-0">
+                  {img && (
+                    <img src={img} alt={cw.title} className="w-full h-full object-cover" loading="lazy" />
+                  )}
+                </div>
+                {/* Play on hover (Apple: white disc, black glyph) */}
+                <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <div className="absolute inset-0 bg-black/25" />
+                  <div className="w-12 h-12 rounded-full bg-white/95 flex items-center justify-center shadow-2xl relative z-10">
+                    <Play className="w-5 h-5 fill-black text-black ml-0.5" />
+                  </div>
+                </div>
+                {/* Remove button — dark glass */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); removeFromContinueWatching(cw.id); }}
+                  className="absolute top-2 right-2 z-20 w-7 h-7 rounded-full bg-black/55 backdrop-blur-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Quitar de continuar viendo"
+                >
+                  <XIcon className="w-3.5 h-3.5 text-white/85" />
+                </button>
+                {/* Apple TV "Up Next": thin progress bar flush on the bottom edge */}
+                <div className="absolute bottom-0 left-0 right-0 z-20 h-[3px] bg-white/25">
+                  <div className="h-full bg-white" style={{ width: `${pct}%` }} />
                 </div>
               </div>
-              {/* Remove button */}
-              <button
-                onClick={(e) => { e.stopPropagation(); removeFromContinueWatching(cw.id); }}
-                className="absolute top-2 right-2 z-20 w-7 h-7 rounded-full bg-black/55 backdrop-blur-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                aria-label="Quitar de continuar viendo"
-              >
-                <XIcon className="w-3.5 h-3.5 text-white/85" />
-              </button>
-              {/* Episode badge */}
-              {cw.type === 'tv' && cw.last_season_watched && cw.last_episode_watched && (
-                <div className="absolute top-2 left-2 z-20 nfx-glass-chip text-[10px]">
-                  T{cw.last_season_watched} · E{cw.last_episode_watched}
-                </div>
-              )}
-              {/* Apple TV+ style: title + remaining + progress ON the artwork */}
-              <div className="absolute bottom-0 left-0 right-0 z-[5] bg-gradient-to-t from-black/90 via-black/45 to-transparent pt-8 pb-2.5 px-3 pointer-events-none">
-                <p className="text-white text-[13px] font-bold leading-tight text-center truncate" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7)' }}>
-                  {cw.title}
+              {/* Caption below the card — title + remaining/episode */}
+              <div className="mt-2 px-0.5">
+                <p className="text-white text-[13px] font-medium leading-tight truncate">{cw.title}</p>
+                <p className="text-white/45 text-[11px] mt-[2px] truncate">
+                  {cw.type === 'tv' && cw.last_season_watched && cw.last_episode_watched
+                    ? `T${cw.last_season_watched} · E${cw.last_episode_watched} · ${formatRemaining(remaining)}`
+                    : formatRemaining(remaining)}
                 </p>
-                <p className="text-white/55 text-[10.5px] text-center mt-0.5">{formatRemaining(remaining)}</p>
-                <div className="h-[3px] bg-white/20 rounded-full overflow-hidden mt-1.5">
-                  <div className="h-full bg-white rounded-full" style={{ width: `${pct}%` }} />
-                </div>
               </div>
             </div>
           );

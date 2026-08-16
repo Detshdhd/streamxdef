@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useStore } from '@/store/useStore';
-import { Search, X, Bell, ChevronDown, Home, Film, Tv, Heart, Download, Sparkles } from 'lucide-react';
+import { Search, X, Bell, ChevronDown, Home, Film, Tv, Heart, Download } from 'lucide-react';
 import type { ActiveTab, MediaItem } from '@/store/useStore';
 
 const NAV_LINKS: { key: ActiveTab | string; label: string; icon?: typeof Home }[] = [
@@ -124,29 +124,30 @@ export default function Navbar() {
       {/* ── Desktop + Mobile Top Nav — liquid glass always-on ── */}
       <nav className={`nfx-nav ${scrolled ? 'nfx-nav--scrolled' : 'nfx-glass-frost'}`}>
         <div className="flex items-center justify-between w-full">
-          {/* Left: Logo + Nav Links */}
-          <div className="flex items-center gap-5 md:gap-7">
-            {/* Logo — minimal icon mark */}
+          {/* Left: Logo + Nav Links (Apple TV+: plain links, no pills) */}
+          <div className="flex items-center gap-6 md:gap-8">
+            {/* Logo — clean white TV mark */}
             <button
-              className="flex items-center shrink-0"
+              className="flex items-center shrink-0 gap-1.5"
               onClick={() => setActiveTab('inicio')}
               aria-label="Inicio"
             >
-              <Sparkles className="w-6 h-6 text-[#e50914]" />
+              <Tv className="w-[22px] h-[22px] text-white" />
+              <span className="hidden sm:inline text-white font-bold text-[15px] tracking-tight">StreamX</span>
             </button>
 
-            {/* Desktop Nav Links — glass pill style */}
-            <div className="hidden md:flex items-center gap-1">
+            {/* Desktop Nav Links — plain Apple TV+ text links */}
+            <div className="hidden md:flex items-center gap-6">
               {NAV_LINKS.map(({ key, label }) => {
                 const isActive = activeTab === key;
                 return (
                   <button
                     key={key}
                     onClick={() => setActiveTab(key as ActiveTab)}
-                    className={`px-3.5 py-1.5 rounded-full text-[13px] font-medium transition-all duration-200 ${
+                    className={`text-[14px] transition-colors duration-200 ${
                       isActive
-                        ? 'bg-[#e50914]/15 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12)]'
-                        : 'text-white/40 hover:text-white/75 hover:bg-white/5'
+                        ? 'text-white font-semibold'
+                        : 'text-white/50 font-medium hover:text-white/90'
                     }`}
                   >
                     {label}
@@ -170,7 +171,7 @@ export default function Navbar() {
                 </button>
               ) : (
                 <div className="flex items-center gap-2 glass rounded-full px-3 py-1.5">
-                  <Search className="w-[16px] h-[16px] text-[#e50914]/70 shrink-0" />
+                  <Search className="w-[16px] h-[16px] text-white/60 shrink-0" />
                   <input
                     ref={inputRef}
                     type="text"
@@ -199,7 +200,7 @@ export default function Navbar() {
             >
               <Bell className="w-[18px] h-[18px]" />
               {activeDownloadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-[7px] h-[7px] bg-[#e50914] rounded-full ring-2 ring-[#0a0a0f] animate-pulse" />
+                <span className="absolute top-1.5 right-1.5 w-[7px] h-[7px] bg-white rounded-full ring-2 ring-[#0a0a0f]" />
               )}
             </button>
 
@@ -210,7 +211,7 @@ export default function Navbar() {
               onMouseLeave={() => setProfileHover(false)}
             >
               <button className="flex items-center gap-1.5 cursor-pointer" aria-label="Perfil">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#e50914] to-[#b00610] flex items-center justify-center overflow-hidden relative shadow-lg shadow-red-900/30">
+                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center overflow-hidden relative border border-white/15">
                   <img
                     src="https://i.pravatar.cc/64?img=3"
                     alt="Perfil"

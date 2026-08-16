@@ -293,7 +293,7 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
 .nfx-btn-play {
   background: #ffffff;
   color: #0a0a0f;
-  border-radius: 6px;
+  border-radius: 999px; /* Apple TV+ capsule */
   font-weight: 700;
   font-size: 18px;
   display: inline-flex;
@@ -319,7 +319,7 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
   backdrop-filter: blur(24px) saturate(160%);
   -webkit-backdrop-filter: blur(24px) saturate(160%);
   color: #fff;
-  border-radius: 6px;
+  border-radius: 999px; /* Apple TV+ capsule */
   font-weight: 600;
   font-size: 18px;
   display: inline-flex;

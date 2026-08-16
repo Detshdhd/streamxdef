@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import { Play, Info, Star, Sparkles } from 'lucide-react';
+import { Play, Info } from 'lucide-react';
 import { useStore, type MediaItem } from '@/store/useStore';
 
 interface HeroBannerProps {
@@ -73,30 +73,21 @@ export default function HeroBanner({ items }: HeroBannerProps) {
           />
         )}
 
-        {/* Gradient layers — deep dark base */}
+        {/* Gradient layers — deep dark base (Apple TV+: neutral, no tint) */}
         <div className="absolute inset-x-0 top-0 h-[35%] bg-gradient-to-b from-[#0a0a0f] via-[#0a0a0f]/60 to-transparent" />
         <div className="absolute inset-y-0 right-0 w-[50%] bg-gradient-to-l from-transparent to-[#0a0a0f]/40" />
         <div className="absolute inset-x-0 bottom-0 h-[70%] bg-gradient-to-t from-[#0a0a0f] via-[#0a0a0f]/80 to-transparent" />
-
-        {/* Subtle red ambient glow at bottom-left */}
-        <div className="absolute bottom-0 left-[5%] w-[400px] h-[200px] opacity-20"
-          style={{ background: 'radial-gradient(ellipse at center, rgba(229,9,20,0.20) 0%, transparent 70%)' }}
-        />
       </div>
 
       {/* Content — bottom-left with animation */}
       <div className={`absolute bottom-[12%] left-[4%] right-[4%] md:right-[45%] z-10 transition-all duration-500 ${isTransitioning ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'}`}>
-        {/* Type badge — glass chip style */}
-        <div className="flex items-center gap-2 mb-3 animate-nfx-slide-up animate-nfx-slide-up-d1">
+        {/* Type badge — Apple TV+ "chip" above the title */}
+        <div className="flex items-center gap-2.5 mb-3 animate-nfx-slide-up animate-nfx-slide-up-d1">
           <span className="nfx-glass-chip text-[11px] font-semibold uppercase tracking-wider">
-            <Sparkles className="w-3 h-3 text-[#e50914]" />
             {isTV ? 'Serie' : 'Película'}
           </span>
           {matchPercent >= 70 && (
-            <span className="inline-flex items-center gap-1 text-[#34d399] text-[12px] font-bold">
-              <Star className="w-3 h-3 fill-[#34d399]" />
-              {matchPercent}%
-            </span>
+            <span className="text-white/55 text-[12px] font-medium">{matchPercent}% relevante</span>
           )}
         </div>
 
@@ -107,9 +98,9 @@ export default function HeroBanner({ items }: HeroBannerProps) {
 
         {/* Metadata row */}
         <div className="flex items-center gap-2.5 mb-3 md:mb-4 text-[12px] md:text-[13px] animate-nfx-slide-up animate-nfx-slide-up-d3">
-          <span className="text-white/50">{year}</span>
+          <span className="text-white/60">{year}</span>
           <span className="text-white/30 hidden sm:inline">{isTV ? 'Serie' : 'Película'}</span>
-          <span className="text-[10px] font-bold tracking-wider bg-[#e50914]/15 text-[#ff5a63] rounded-full px-2 py-[2px] hidden sm:inline-flex">HD</span>
+          <span className="text-[10px] font-bold tracking-wider bg-white/15 text-white rounded-full px-2 py-[2px] hidden sm:inline-flex">HD</span>
         </div>
 
         {/* Description */}
@@ -146,8 +137,8 @@ export default function HeroBanner({ items }: HeroBannerProps) {
               onClick={() => goTo(idx)}
               className={`transition-all duration-300 rounded-full ${
                 idx === currentIndex
-                  ? 'w-6 h-1.5 bg-[#e50914]'
-                  : 'w-1.5 h-1.5 bg-white/20 hover:bg-white/40'
+                  ? 'w-6 h-1.5 bg-white'
+                  : 'w-1.5 h-1.5 bg-white/25 hover:bg-white/50'
               }`}
               aria-label={`Slide ${idx + 1}`}
             />

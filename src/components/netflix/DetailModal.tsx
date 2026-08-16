@@ -264,7 +264,7 @@ export default function DetailModal() {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-[#e50914]/10 to-[#131318]" />
+              <div className="w-full h-full bg-gradient-to-br from-[#26262e] to-[#131318]" />
             )}
 
             <div className="absolute inset-0 bg-gradient-to-t from-[#131318] via-transparent to-black/30" />
@@ -348,7 +348,7 @@ export default function DetailModal() {
                     )}
                     <span className="text-white/30 border border-white/15 rounded-full px-1.5 py-[1px] text-[10px]">HD</span>
                     {/* Content type badge */}
-                    <span className="inline-block bg-[#e50914]/15 text-[#ff5a63] text-[10px] rounded-full px-2 py-[1px] font-medium">
+                    <span className="inline-block bg-white/12 text-white/80 text-[10px] rounded-full px-2 py-[1px] font-medium">
                       {contentTypeLabel}
                     </span>
                   </div>
@@ -361,7 +361,7 @@ export default function DetailModal() {
                   {overview && overview.length > 200 && (
                     <button
                       onClick={() => setShowFullOverview(!showFullOverview)}
-                      className="text-[#e50914] text-sm hover:underline mb-4 inline-flex items-center gap-1 transition-colors duration-200"
+                      className="text-white/70 text-sm hover:text-white hover:underline mb-4 inline-flex items-center gap-1 transition-colors duration-200"
                     >
                       {showFullOverview ? 'Ver menos' : 'Ver más'}
                       {showFullOverview ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -431,7 +431,7 @@ export default function DetailModal() {
                         }}
                         className={`px-3 py-1.5 text-[12px] font-medium whitespace-nowrap transition-all duration-200 rounded-full ${
                           selectedSeason === season.season_number
-                            ? 'bg-[#e50914] text-white'
+                            ? 'bg-white text-black'
                             : 'text-white/40 hover:text-white/70 hover:bg-white/5'
                         }`}
                       >
@@ -467,7 +467,7 @@ export default function DetailModal() {
                         }}
                         className={`nfx-ep-row w-full text-left rounded-xl ${
                           selectedEpisode === ep.episode_number && selectedSeason === selectedSeason
-                            ? 'bg-[#e50914]/8'
+                            ? 'bg-white/[0.08]'
                             : ''
                         }`}
                       >
@@ -518,7 +518,7 @@ export default function DetailModal() {
             {/* For movies: just show a big play button area */}
             {mediaType === 'movie' && !detail && (
               <div className="mt-6 flex justify-center py-8">
-                <Loader2 className="w-8 h-8 text-[#e50914]/40 animate-spin" />
+                <Loader2 className="w-8 h-8 text-white/40 animate-spin" />
               </div>
             )}
 

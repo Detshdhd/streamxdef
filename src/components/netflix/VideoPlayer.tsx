@@ -361,11 +361,21 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
     setError('');
     switchingRef.current = false;
 
+    // Auto-fallback skips embed players (vimeos) — those are manual-only
+    // (language menu) because they carry third-party ads.
+    const nextPlayableIndex = (from: number): number => {
+      for (let i = from + 1; i < sources.length; i++) {
+        if (sources[i].type !== 'embed') return i;
+      }
+      return -1;
+    };
+
     const loadTimeout = setTimeout(() => {
       if (switchingRef.current) return;
       switchingRef.current = true;
-      if (sourceIdx < sources.length - 1) {
-        setSourceIdx(prev => prev + 1);
+      const next = nextPlayableIndex(sourceIdx);
+      if (next >= 0) {
+        setSourceIdx(next);
       } else {
         setError('Este contenido no está disponible ahora');
         setLoading(false);
@@ -377,8 +387,9 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
       if (switchingRef.current) return;
       switchingRef.current = true;
       clearTimeout(loadTimeout);
-      if (sourceIdx < sources.length - 1) {
-        setSourceIdx(prev => prev + 1);
+      const next = nextPlayableIndex(sourceIdx);
+      if (next >= 0) {
+        setSourceIdx(next);
       } else {
         setError('Error al reproducir');
         setLoading(false);
@@ -1067,12 +1078,23 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
 
     console.log(`[Player] Loading source ${currentSource + 1}/${sources.length}: ${src.name} (${src.language})`);
 
+    // Auto-fallback only advances through OUR hls/mp4 sources — embed
+    // players (vimeos, third-party ads) are chosen explicitly via the
+    // language menu, never automatically.
+    const nextPlayableIndex = (from: number): number => {
+      for (let i = from + 1; i < sources.length; i++) {
+        if (sources[i].type !== 'embed') return i;
+      }
+      return -1;
+    };
+
     const loadTimeout = setTimeout(() => {
       if (switchingRef.current) return;
       switchingRef.current = true;
-      if (currentSource < sources.length - 1) {
+      const next = nextPlayableIndex(currentSource);
+      if (next >= 0) {
         prevSourceRef.current = -1;
-        setCurrentSource(prev => prev + 1);
+        setCurrentSource(next);
       } else {
         setError('Este contenido no está disponible ahora');
         setLoading(false);
@@ -1084,9 +1106,10 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
       if (switchingRef.current) return;
       switchingRef.current = true;
       clearTimeout(loadTimeout);
-      if (currentSource < sources.length - 1) {
+      const next = nextPlayableIndex(currentSource);
+      if (next >= 0) {
         prevSourceRef.current = -1;
-        setCurrentSource(prev => prev + 1);
+        setCurrentSource(next);
       } else {
         setError('No se pudo reproducir este contenido');
         setLoading(false);
