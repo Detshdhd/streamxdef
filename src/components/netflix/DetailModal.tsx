@@ -264,10 +264,10 @@ export default function DetailModal() {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-[#26262e] to-[#131318]" />
+              <div className="w-full h-full bg-gradient-to-br from-[#1d1d20] to-[#101012]" />
             )}
 
-            <div className="absolute inset-0 bg-gradient-to-t from-[#131318] via-transparent to-black/30" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/30" />
 
             <div className="absolute bottom-[24px] md:bottom-[32px] left-[24px] md:left-[32px] right-[60px]">
               <h2 className="nfx-font-hero text-[32px] md:text-[40px] text-white mb-4 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
@@ -279,7 +279,7 @@ export default function DetailModal() {
                   onClick={handlePlay}
                   className="nfx-btn-play"
                 >
-                  <Play className="w-6 h-6 fill-[#0a0a0f] text-[#0a0a0f]" />
+                  <Play className="w-6 h-6 fill-black text-black" />
                   <span>Reproducir</span>
                 </button>
 

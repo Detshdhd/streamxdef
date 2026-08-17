@@ -56,7 +56,6 @@ export default function HeroBanner({ items }: HeroBannerProps) {
   const title = item.title || item.name || '';
   const year = (item.release_date || item.first_air_date || '').substring(0, 4);
   const isTV = item.media_type === 'tv' || !!item.name;
-  const matchPercent = item.vote_average > 0 ? Math.round(item.vote_average * 10) : 0;
 
   return (
     <div className="nfx-hero">
@@ -73,38 +72,30 @@ export default function HeroBanner({ items }: HeroBannerProps) {
           />
         )}
 
-        {/* Gradient layers — deep dark base (Apple TV+: neutral, no tint) */}
-        <div className="absolute inset-x-0 top-0 h-[35%] bg-gradient-to-b from-[#0a0a0f] via-[#0a0a0f]/60 to-transparent" />
-        <div className="absolute inset-y-0 right-0 w-[50%] bg-gradient-to-l from-transparent to-[#0a0a0f]/40" />
-        <div className="absolute inset-x-0 bottom-0 h-[70%] bg-gradient-to-t from-[#0a0a0f] via-[#0a0a0f]/80 to-transparent" />
+        {/* Gradient layers — Apple TV+: pure black, no color tint */}
+        <div className="absolute inset-x-0 top-0 h-[35%] bg-gradient-to-b from-black via-black/60 to-transparent" />
+        <div className="absolute inset-y-0 right-0 w-[50%] bg-gradient-to-l from-transparent to-black/40" />
+        <div className="absolute inset-x-0 bottom-0 h-[70%] bg-gradient-to-t from-black via-black/80 to-transparent" />
       </div>
 
       {/* Content — bottom-left with animation */}
       <div className={`absolute bottom-[12%] left-[4%] right-[4%] md:right-[45%] z-10 transition-all duration-500 ${isTransitioning ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'}`}>
-        {/* Type badge — Apple TV+ "chip" above the title */}
-        <div className="flex items-center gap-2.5 mb-3 animate-nfx-slide-up animate-nfx-slide-up-d1">
-          <span className="nfx-glass-chip text-[11px] font-semibold uppercase tracking-wider">
-            {isTV ? 'Serie' : 'Película'}
-          </span>
-          {matchPercent >= 70 && (
-            <span className="text-white/55 text-[12px] font-medium">{matchPercent}% relevante</span>
-          )}
-        </div>
-
-        {/* Title */}
+        {/* Title — Apple TV+ hero: big SF bold, no chip above */}
         <h1 className="nfx-font-hero text-[36px] sm:text-[48px] md:text-[56px] lg:text-[64px] text-white leading-[1.05] mb-3 md:mb-4 hero-text-shadow animate-nfx-slide-up animate-nfx-slide-up-d2">
           {title}
         </h1>
 
-        {/* Metadata row */}
-        <div className="flex items-center gap-2.5 mb-3 md:mb-4 text-[12px] md:text-[13px] animate-nfx-slide-up animate-nfx-slide-up-d3">
-          <span className="text-white/60">{year}</span>
-          <span className="text-white/30 hidden sm:inline">{isTV ? 'Serie' : 'Película'}</span>
-          <span className="text-[10px] font-bold tracking-wider bg-white/15 text-white rounded-full px-2 py-[2px] hidden sm:inline-flex">HD</span>
+        {/* Metadata row — Apple: year · type · quality */}
+        <div className="flex items-center gap-2 mb-2 md:mb-3 text-[13px] md:text-[14px] animate-nfx-slide-up animate-nfx-slide-up-d3">
+          <span className="text-white/70">{year}</span>
+          <span className="text-white/30">·</span>
+          <span className="text-white/70">{isTV ? 'Serie' : 'Película'}</span>
+          <span className="text-white/30">·</span>
+          <span className="text-white/70 hidden sm:inline">HD</span>
         </div>
 
-        {/* Description */}
-        <p className="text-white/45 text-[12px] md:text-[14px] leading-[1.7] mb-5 md:mb-6 line-clamp-2 max-w-[460px] animate-nfx-slide-up animate-nfx-slide-up-d3">
+        {/* Description — Apple: 15px white/70 */}
+        <p className="text-white/70 text-[13px] md:text-[15px] leading-[1.6] mb-5 md:mb-6 line-clamp-2 max-w-[480px] animate-nfx-slide-up animate-nfx-slide-up-d3">
           {item.overview}
         </p>
 
@@ -114,7 +105,7 @@ export default function HeroBanner({ items }: HeroBannerProps) {
             onClick={(e) => { e.stopPropagation(); playMovie(item); }}
             className="nfx-btn-play"
           >
-            <Play className="w-5 h-5 fill-[#0a0a0f] text-[#0a0a0f]" />
+            <Play className="w-5 h-5 fill-black text-black" />
             <span>Reproducir</span>
           </button>
 

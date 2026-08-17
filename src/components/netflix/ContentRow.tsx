@@ -13,8 +13,8 @@ interface ContentRowProps {
 
 /* ────────────────────────────────────────────
    Content Card — Apple TV+ style
-   Landscape 16:9 tile; title + meta live INSIDE
-   the artwork, centered over a bottom gradient.
+   Landscape 16:9 tile with rounded corners;
+   title + year BELOW the artwork in small text.
    ──────────────────────────────────────────── */
 function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number; isTopTen?: boolean }) {
   const handleCardClick = useStore((s) => s.handleCardClick);
@@ -38,9 +38,12 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
   if (!imgPath || imgError) {
     return (
       <div className={`${cardWidth} shrink-0`}>
-        <div className="nfx-card-img nfx-card-img-landscape flex items-end justify-center pb-3">
-          <span className="text-white/25 text-[11px] font-semibold text-center px-4 leading-snug uppercase tracking-wide">{title}</span>
+        <div className="nfx-card-img nfx-card-img-landscape flex items-center justify-center">
+          <span className="text-white/25 text-[11px] font-medium text-center px-4 leading-snug">{title}</span>
         </div>
+        {/* Caption below — same as loaded cards */}
+        <p className="text-white text-[13px] font-medium leading-tight mt-2 truncate">{title}</p>
+        {year && <p className="text-white/45 text-[12px] mt-[1px] truncate">{year}</p>}
       </div>
     );
   }
@@ -76,17 +79,6 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
           </div>
         )}
 
-        {/* ── Apple TV+: title bold + centered on the artwork, over a
-             bottom gradient — always visible ── */}
-        <div className="absolute bottom-0 left-0 right-0 z-[5] bg-gradient-to-t from-black/90 via-black/45 to-transparent pt-8 pb-2.5 px-3 pointer-events-none">
-          <p className="text-white text-[13px] md:text-[13.5px] font-bold leading-tight text-center line-clamp-2" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7)' }}>
-            {title}
-          </p>
-          {year && (
-            <p className="text-white/55 text-[10.5px] mt-0.5 text-center">{year}</p>
-          )}
-        </div>
-
         {/* ── Hover overlay ── */}
         <div
           className={`absolute inset-0 transition-all duration-300 ${
@@ -116,6 +108,19 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ── Apple TV+: caption BELOW the artwork — title white,
+           metadata gray, never on top of the image ── */}
+      <div className="mt-2">
+        <p className="text-white text-[13px] md:text-[13.5px] font-medium leading-tight line-clamp-1">
+          {title}
+        </p>
+        {year && (
+          <p className="text-white/45 text-[11.5px] md:text-[12px] mt-[1px] line-clamp-1">
+            {year}
+          </p>
+        )}
       </div>
     </div>
   );
@@ -154,15 +159,14 @@ export default function ContentRow({ title, items, isTopTen, rowIndex = 0 }: Con
       style={mounted ? { animationDelay: `${rowIndex * 60}ms` } : undefined}
       suppressHydrationWarning
     >
-      {/* Row title — Apple TV+ style: medium weight + right chevron.
-           Clicking it scrolls the row forward (the chevron signals "more"). */}
+      {/* Row title — Apple TV+ shelf header: bold, larger, with chevron */}
       <div className="px-[3%] mb-[10px] md:mb-[12px]">
         <button
           type="button"
           onClick={() => scroll('right')}
           className="group/header flex items-center gap-1.5 select-none"
         >
-          <h2 className="text-white font-semibold text-[17px] md:text-[20px] tracking-tight group-hover/header:text-white/90 transition-colors">
+          <h2 className="text-white font-bold text-[19px] md:text-[24px] tracking-[-0.01em] group-hover/header:text-white/90 transition-colors">
             {title}
           </h2>
           <ChevronRight className="w-[18px] h-[18px] md:w-5 md:h-5 text-white/40 group-hover/header:text-white/80 transition-all duration-200 group-hover/header:translate-x-0.5" />
@@ -185,7 +189,7 @@ export default function ContentRow({ title, items, isTopTen, rowIndex = 0 }: Con
         <div
           ref={scrollRef}
           onScroll={checkScroll}
-          className="flex gap-[10px] md:gap-[12px] overflow-x-auto px-[3%] pb-1 scrollbar-hide"
+          className="flex gap-[12px] md:gap-[16px] overflow-x-auto px-[3%] pb-1 scrollbar-hide"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {items.map((item, idx) => (

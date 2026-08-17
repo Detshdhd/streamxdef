@@ -133,7 +133,7 @@ function SkeletonRow() {
 function SkeletonHero() {
   return (
     <div className="nfx-hero">
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0f]/60 via-transparent to-[#0a0a0f]" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black" />
       <div className="absolute bottom-[12%] left-[4%] space-y-3">
         <div className="h-[48px] w-64 bg-white/[0.04] rounded-lg animate-pulse" />
         <div className="h-3 w-80 bg-white/[0.04] rounded-lg animate-pulse" />
@@ -151,11 +151,11 @@ function NetflixFooter() {
   return (
     <footer className="relative z-10 px-[3%] pt-12 pb-[80px] md:pb-12">
       {/* Divider — warm gradient */}
-      <div className="h-px bg-gradient-to-r from-transparent via-[#e50914]/10 to-transparent mb-8" />
+      <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent mb-8" />
 
       <div className="flex gap-3 mb-6">
         {[Facebook, Instagram, Youtube].map((Icon, i) => (
-          <a key={i} href="#" className="w-9 h-9 rounded-full flex items-center justify-center text-white/15 hover:text-[#e50914] hover:bg-[#e50914]/10 transition-all duration-300" aria-label="Social">
+          <a key={i} href="#" className="w-9 h-9 rounded-full flex items-center justify-center text-white/15 hover:text-white hover:bg-white/10 transition-all duration-300" aria-label="Social">
             <Icon className="w-[18px] h-[18px]" />
           </a>
         ))}
@@ -223,13 +223,13 @@ function ContinueWatchingRow({ items }: { items: ContinueWatchingItem[] }) {
 
   return (
     <div className="mb-[34px] md:mb-[46px]">
-      {/* Header matching the other rows (chevron affordance) */}
+      {/* Header matching the other rows (bold shelf header) */}
       <div className="px-[3%] mb-[10px] md:mb-[12px]">
-        <h2 className="text-white font-semibold text-[17px] md:text-[20px] tracking-tight select-none flex items-center gap-1.5">
+        <h2 className="text-white font-bold text-[19px] md:text-[24px] tracking-[-0.01em] select-none flex items-center gap-1.5">
           Seguir viendo
         </h2>
       </div>
-      <div className="flex gap-[10px] md:gap-[12px] overflow-x-auto px-[3%] pb-1 scrollbar-hide">
+      <div className="flex gap-[12px] md:gap-[16px] overflow-x-auto px-[3%] pb-1 scrollbar-hide">
         {items.map((cw) => {
           const pct = cw.progress.duration > 0 ? Math.min(100, (cw.progress.watched / cw.progress.duration) * 100) : 0;
           const remaining = cw.progress.duration - cw.progress.watched;
@@ -295,13 +295,13 @@ function MiListaTab() {
   if (myList.length === 0) {
     return (
       <div className="px-[3%] py-20 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-[#e50914]/10 mx-auto mb-4 flex items-center justify-center">
-          <Heart className="w-7 h-7 text-[#e50914]/40" />
+        <div className="w-16 h-16 rounded-2xl bg-white/5 mx-auto mb-4 flex items-center justify-center">
+          <Heart className="w-7 h-7 text-white/30" />
         </div>
         <p className="text-white/40 text-lg font-medium mb-2">Tu lista está vacía</p>
         <p className="text-white/20 text-sm mb-6">Agrega pelis y series tocando el corazón</p>
         <button onClick={() => setActiveTab('peliculas')} className="nfx-btn-play !h-11 !text-sm">
-          <Play className="w-4 h-4 fill-[#0a0a0f] text-[#0a0a0f]" />
+          <Play className="w-4 h-4 fill-black text-black" />
           Explora películas
         </button>
       </div>
@@ -335,7 +335,7 @@ function MiListaTab() {
                 </div>
               )}
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
-                <div className="w-12 h-12 rounded-full bg-[#e50914]/20 flex items-center justify-center border border-[#e50914]/30">
+                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center border border-white/20">
                   <Play className="w-6 h-6 fill-white text-white ml-0.5" />
                 </div>
               </div>
@@ -445,14 +445,14 @@ function SearchTab() {
     <div className="px-[4%] py-4">
       <div className="flex items-center gap-3 mb-6">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#e50914]/40" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar películas y series..."
             autoFocus
-            className="w-full bg-[#1a1a20] border border-[#e50914]/15 rounded-xl text-white text-[16px] py-3 pl-11 pr-4 outline-none focus:border-[#e50914]/40 transition-colors placeholder:text-white/20"
+            className="w-full bg-[#1a1a20] border border-white/10 rounded-xl text-white text-[16px] py-3 pl-11 pr-4 outline-none focus:border-white/30 transition-colors placeholder:text-white/20"
           />
         </div>
         {query && (
@@ -464,7 +464,7 @@ function SearchTab() {
 
       {query.trim() === '' && (
         <div className="text-white/30 text-center py-16">
-          <Search className="w-12 h-12 mx-auto mb-4 text-[#e50914]/15" />
+          <Search className="w-12 h-12 mx-auto mb-4 text-white/15" />
           <p className="text-lg">¿Qué quieres ver hoy?</p>
         </div>
       )}
@@ -488,7 +488,7 @@ function SearchTab() {
             <button
               key={`${item.id}-${item.media_type}`}
               onClick={() => handleSelect(item)}
-              className="flex items-center gap-3 w-full px-3 py-2.5 hover:bg-[#e50914]/8 rounded-xl transition-colors text-left"
+              className="flex items-center gap-3 w-full px-3 py-2.5 hover:bg-white/8 rounded-xl transition-colors text-left"
             >
               {item.poster_path && (
                 <img
@@ -504,7 +504,7 @@ function SearchTab() {
                 </p>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-[12px] text-white/40">{getYear(item)}</span>
-                  <span className="inline-block bg-[#e50914]/15 text-[10px] text-[#ff5a63] rounded-full px-1.5 py-[1px]">
+                  <span className="inline-block bg-white/10 text-[10px] text-white/70 rounded-full px-1.5 py-[1px]">
                     {isTv(item) ? 'Serie' : 'Película'}
                   </span>
                   {item.vote_average > 0 && (
@@ -576,7 +576,7 @@ function DownloadsTab() {
         <p className="text-white/40 text-lg font-medium mb-2">No hay descargas</p>
         <p className="text-white/20 text-sm mb-6">Descarga pelis y series para verlas sin conexión</p>
         <button onClick={() => setActiveTab('peliculas')} className="nfx-btn-play !h-11 !text-sm">
-          <Play className="w-4 h-4 fill-[#0a0a0f] text-[#0a0a0f]" />
+          <Play className="w-4 h-4 fill-black text-black" />
           Explora contenido
         </button>
       </div>
@@ -616,7 +616,7 @@ function DownloadsTab() {
               </p>
               {dl.status === 'downloading' && (
                 <div className="mt-2 w-full h-[4px] bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#e50914] rounded-full transition-all duration-300" style={{ width: `${dl.progress}%` }} />
+                  <div className="h-full bg-white rounded-full transition-all duration-300" style={{ width: `${dl.progress}%` }} />
                 </div>
               )}
               <div className="flex items-center gap-1.5 mt-1">
@@ -636,11 +636,11 @@ function DownloadsTab() {
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {dl.status === 'completed' && (
-                <button onClick={() => handlePlay(dl)} className="w-9 h-9 rounded-full bg-gradient-to-br from-[#e50914] to-[#b00610] flex items-center justify-center hover:from-[#ff3d47] hover:to-[#e50914] transition-colors" title="Reproducir">
+                <button onClick={() => handlePlay(dl)} className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:bg-white/85 transition-colors" title="Reproducir">
                   <Play className="w-4 h-4 fill-white text-white ml-0.5" />
                 </button>
               )}
-              <button onClick={() => removeDownload(dl.id)} className="w-9 h-9 rounded-full border border-white/15 flex items-center justify-center hover:border-[#e50914]/40 hover:bg-[#e50914]/10 transition-all opacity-0 group-hover:opacity-100" title="Eliminar">
+              <button onClick={() => removeDownload(dl.id)} className="w-9 h-9 rounded-full border border-white/15 flex items-center justify-center hover:border-white/25 hover:bg-white/5 transition-all opacity-0 group-hover:opacity-100" title="Eliminar">
                 <XIcon className="w-4 h-4 text-white/70" />
               </button>
             </div>
@@ -989,7 +989,7 @@ export default function Home() {
   // Special tab content
   if (activeTab === 'buscar') {
     return (
-      <div className="min-h-screen bg-[#0a0a0f]">
+      <div className="min-h-screen bg-black">
         <Navbar />
         <div className="pt-[64px]">
           <SearchTab />
@@ -1002,7 +1002,7 @@ export default function Home() {
 
   if (activeTab === 'mi-lista') {
     return (
-      <div className="min-h-screen bg-[#0a0a0f]">
+      <div className="min-h-screen bg-black">
         <Navbar />
         <div className="pt-[64px]">
           <MiListaTab />
@@ -1015,7 +1015,7 @@ export default function Home() {
 
   if (activeTab === 'descargas') {
     return (
-      <div className="min-h-screen bg-[#0a0a0f]">
+      <div className="min-h-screen bg-black">
         <Navbar />
         <div className="pt-[64px]">
           <DownloadsTab />
@@ -1027,7 +1027,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] flex flex-col">
+    <div className="min-h-screen bg-black flex flex-col">
       <Navbar />
 
       {/* Hero */}

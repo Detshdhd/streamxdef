@@ -224,13 +224,13 @@ function EmbedPlayer({
 
       {/* Server / language picker */}
       {showServers && (
-        <div className="absolute top-[68px] right-4 md:right-6 z-20 w-64 max-h-[60vh] overflow-y-auto rounded-2xl border border-white/10 bg-[#0a0a0f]/95 backdrop-blur-xl shadow-2xl p-2">
+        <div className="absolute top-[68px] right-4 md:right-6 z-20 w-64 max-h-[60vh] overflow-y-auto rounded-2xl border border-white/10 bg-black/95 backdrop-blur-xl shadow-2xl p-2">
           {sources.map((s, idx) => (
             <button
               key={`${s.name}-${idx}`}
               onClick={() => { onSelectSource(idx); setShowServers(false); }}
               className={`w-full text-left px-4 py-3 rounded-xl transition-colors ${
-                idx === currentSource ? 'bg-[#e50914]/20 text-white' : 'text-white/70 hover:bg-white/5'
+                idx === currentSource ? 'bg-white/15 text-white' : 'text-white/70 hover:bg-white/5'
               }`}
             >
               <span className="text-sm font-medium block">{s.name}</span>
@@ -708,7 +708,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
 
       {loading && sources.length > 0 && (
         <div className="w-32 h-[3px] bg-white/10 rounded-full overflow-hidden">
-          <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-[#e50914] to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
+          <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
         </div>
       )}
 
@@ -732,7 +732,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
         <div className="flex flex-col items-center">
           <h2 className="text-white text-xl font-bold tracking-tight mb-5 text-center px-6">{title}</h2>
           <div className="w-32 h-[3px] bg-white/10 rounded-full overflow-hidden">
-            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-[#e50914] to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
+            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
           </div>
         </div>
       )}
@@ -755,7 +755,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
           <>
             <button
               onClick={() => setLangMenuOpen(!langMenuOpen)}
-              className="absolute bottom-7 left-5 px-5 py-3 bg-[#e50914]/85 backdrop-blur-xl rounded-xl text-white text-sm font-semibold z-10 flex items-center gap-3 shadow-xl shadow-[#e50914]/25 hover:bg-[#e50914] transition-all duration-300 border border-[#e50914]/30"
+              className="absolute bottom-7 left-5 px-5 py-3 bg-white/[0.14] backdrop-blur-xl rounded-xl text-white text-sm font-semibold z-10 flex items-center gap-3 shadow-xl shadow-black/40 hover:bg-white/25 transition-all duration-300 border border-white/20"
              
             >
               IDIOMA
@@ -792,13 +792,13 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
                     }}
                     className={`w-full text-left px-5 py-3.5 text-sm transition-all duration-200 ${
                       lang.sourceIndex === sourceIdx
-                        ? 'bg-[#e50914]/15 text-white font-semibold'
+                        ? 'bg-white/15 text-white font-semibold'
                         : 'text-white/50 hover:bg-white/[0.04] hover:text-white/85'
                     }`}
                    
                   >
                     {lang.sourceIndex === sourceIdx && (
-                      <span className="mr-2.5 text-[#e50914]">&#10003;</span>
+                      <span className="mr-2.5 text-white">&#10003;</span>
                     )}
                     {lang.label}
                   </button>
@@ -1801,7 +1801,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
       {loading && sources.length > 0 && (
         <div className="absolute inset-0 z-[5] flex items-center justify-center pointer-events-none">
           <div className="w-32 h-[3px] bg-white/10 rounded-full overflow-hidden">
-            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-[#e50914] to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
+            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
           </div>
         </div>
       )}
@@ -1811,7 +1811,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
         <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center bg-[#0a0a0f]">
           <div className="text-center max-w-md px-10">
             <div className="w-16 h-16 rounded-2xl glass flex items-center justify-center mb-7 mx-auto">
-              <AlertCircle className="w-8 h-8 text-[#e50914]/70" />
+              <AlertCircle className="w-8 h-8 text-white/70" />
             </div>
             <p className="text-white/90 text-lg font-semibold mb-2 tracking-tight">{error}</p>
             <p className="text-white/35 text-sm font-light mb-9">Intenta con otro contenido o cambia el idioma</p>
@@ -1832,7 +1832,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
         <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center bg-[#0a0a0f]">
           <h2 className="text-white text-2xl md:text-3xl font-bold tracking-tight mb-6 text-center px-6 hero-text-shimmer">{title}</h2>
           <div className="w-40 h-[3px] bg-white/10 rounded-full overflow-hidden">
-            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-[#e50914] to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
+            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
           </div>
         </div>
       )}
@@ -1862,7 +1862,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
               <div className="ml-auto w-10 h-10 relative shrink-0">
                 <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
                   <circle cx="18" cy="18" r="16" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2" />
-                  <circle cx="18" cy="18" r="16" fill="none" stroke="#e50914" strokeWidth="2"
+                  <circle cx="18" cy="18" r="16" fill="none" stroke="#ffffff" strokeWidth="2"
                     strokeDasharray={`${2 * Math.PI * 16}`}
                     strokeDashoffset={`${2 * Math.PI * 16 * (1 - nextEpisodeCountdown / 10)}`}
                     style={{ transition: 'stroke-dashoffset 1s linear' }}
@@ -1899,8 +1899,8 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
             
           }}
         >
-          <div className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-black/60 backdrop-blur-2xl border border-white/[0.1] shadow-2xl shadow-[#e50914]/20">
-            <span className="text-[#e50914] text-3xl font-bold tracking-tight">{seekHint.direction}</span>
+          <div className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-black/60 backdrop-blur-2xl border border-white/[0.1] shadow-2xl shadow-white/10">
+            <span className="text-white text-3xl font-bold tracking-tight">{seekHint.direction}</span>
             <span className="w-px h-8 bg-white/10" />
             <span className="text-white/90 text-2xl font-semibold tabular-nums">{seekHint.seconds}s</span>
           </div>
@@ -2000,19 +2000,19 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
 
               {/* Progress glow trail — blurred red accent behind the fill */}
               <div
-                className="absolute top-[-2px] left-0 h-[calc(100%+4px)] rounded-full bg-[#e50914]/20 blur-[3px] transition-[width] duration-100"
+                className="absolute top-[-2px] left-0 h-[calc(100%+4px)] rounded-full bg-white/25 blur-[3px] transition-[width] duration-100"
                 style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}
               />
 
               {/* Progress fill — red gradient */}
               <div
-                className="absolute top-0 left-0 h-full rounded-full bg-gradient-to-r from-[#e50914] to-[#ff4d4f] transition-[width] duration-100"
+                className="absolute top-0 left-0 h-full rounded-full bg-gradient-to-r from-white to-white/85 transition-[width] duration-100"
                 style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}
               >
                 {/* Always-visible playhead — grows on hover with glow */}
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[10px] h-[10px] group-hover/progress:w-[16px] group-hover/progress:h-[16px] rounded-full bg-white shadow-lg shadow-[#e50914]/50 border-2 border-[#e50914] z-10" style={{ transition: 'width 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[10px] h-[10px] group-hover/progress:w-[16px] group-hover/progress:h-[16px] rounded-full bg-white shadow-lg shadow-black/50 border-2 border-white z-10" style={{ transition: 'width 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
                 {/* Playhead glow — subtle always, stronger on hover */}
-                <div className="absolute right-[-4px] top-1/2 -translate-y-1/2 w-4 h-4 group-hover/progress:w-8 group-hover/progress:h-8 rounded-full bg-[#e50914]/25 group-hover/progress:bg-[#e50914]/40 blur-md transition-all duration-300" />
+                <div className="absolute right-[-4px] top-1/2 -translate-y-1/2 w-4 h-4 group-hover/progress:w-8 group-hover/progress:h-8 rounded-full bg-white/25 group-hover/progress:bg-white/40 blur-md transition-all duration-300" />
               </div>
             </div>
 
@@ -2085,10 +2085,10 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
                   onClick={handleVolumeClick}
                 >
                   <div
-                    className="h-full bg-[#e50914] rounded-full relative"
+                    className="h-full bg-white rounded-full relative"
                     style={{ width: `${(isMuted ? 0 : volume) * 100}%` }}
                   >
-                    <div className="absolute right-[-5px] top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg shadow-[#e50914]/40 border-2 border-[#e50914] transition-all group-hover/vol:w-3.5 group-hover/vol:h-3.5" />
+                    <div className="absolute right-[-5px] top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg shadow-black/40 border-2 border-white transition-all group-hover/vol:w-3.5 group-hover/vol:h-3.5" />
                   </div>
                 </div>
               </div>
@@ -2115,7 +2115,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
                       onClick={(e) => { e.stopPropagation(); setLangMenuOpen(!langMenuOpen); resetTimer(); }}
                       className="glass rounded-full px-4 py-2 text-white text-xs flex items-center gap-2 hover:bg-white/10 transition-all active:scale-95"
                     >
-                      <Subtitles className="w-4 h-4 text-[#e50914]/80" />
+                      <Subtitles className="w-4 h-4 text-white/80" />
                       <span className="text-white/85 font-medium">{currentLangLabel}</span>
                     </button>
                     {/* Language menu */}
@@ -2128,15 +2128,15 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
                             onClick={(e) => { e.stopPropagation(); changeLanguage(lang.key); }}
                             className={`w-full text-left px-4 py-3 text-sm transition-all relative ${
                               lang.key === currentLangKey
-                                ? 'text-white font-medium bg-[#e50914]/10'
+                                ? 'text-white font-medium bg-white/10'
                                 : 'text-white/45 hover:bg-white/[0.04] hover:text-white/85'
                             }`}
                           >
                             {lang.key === currentLangKey && (
-                              <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#e50914] rounded-r" />
+                              <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-white rounded-r" />
                             )}
                             {lang.key === currentLangKey && (
-                              <span className="mr-2 text-[#e50914]">&#10003;</span>
+                              <span className="mr-2 text-white">&#10003;</span>
                             )}
                             {lang.label}
                           </button>
@@ -2168,11 +2168,11 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
                         onClick={(e) => { e.stopPropagation(); changeQuality(-1); }}
                         className={`w-full text-left px-4 py-3 text-sm transition-all relative ${
                           currentQuality === -1
-                            ? 'text-white font-medium bg-[#e50914]/10'
+                            ? 'text-white font-medium bg-white/10'
                             : 'text-white/45 hover:bg-white/[0.04] hover:text-white/85'
                         }`}
                       >
-                        {currentQuality === -1 && <span className="mr-2 text-[#e50914]">&#10003;</span>}
+                        {currentQuality === -1 && <span className="mr-2 text-white">&#10003;</span>}
                         Auto <span className="text-white/30 text-xs">(recomendado)</span>
                       </button>
                       {qualityLevels.map((q) => (
@@ -2181,11 +2181,11 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
                           onClick={(e) => { e.stopPropagation(); changeQuality(q.index); }}
                           className={`w-full text-left px-4 py-3 text-sm transition-all relative ${
                             currentQuality === q.index
-                              ? 'text-white font-medium bg-[#e50914]/10'
+                              ? 'text-white font-medium bg-white/10'
                               : 'text-white/45 hover:bg-white/[0.04] hover:text-white/85'
                           }`}
                         >
-                          {q.index === currentQuality && <span className="mr-2 text-[#e50914]">&#10003;</span>}
+                          {q.index === currentQuality && <span className="mr-2 text-white">&#10003;</span>}
                           {q.label}
                         </button>
                       ))}
@@ -2199,7 +2199,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
                 <button
                   onClick={(e) => { e.stopPropagation(); setShowSubtitles(!showSubtitles); resetTimer(); }}
                   className={`glass rounded-full px-3.5 py-2 text-xs flex items-center gap-1.5 transition-all active:scale-95 ${
-                    showSubtitles ? '!bg-[#e50914]/15 !border-[#e50914]/30 text-[#e50914]' : 'text-white/50 hover:text-white/85 hover:bg-white/10'
+                    showSubtitles ? '!bg-white/15 !border-white/30 text-white' : 'text-white/50 hover:text-white/85 hover:bg-white/10'
                   }`}
                 >
                   <Subtitles className="w-4 h-4" />
@@ -2209,7 +2209,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
               {subtitleLoading && (
                 <div className="glass rounded-full px-3.5 py-2 text-white/40 text-xs flex items-center gap-2">
                   <div className="w-6 h-[2px] bg-white/15 rounded-full overflow-hidden">
-                    <div className="h-full w-1/2 bg-[#e50914] rounded-full" style={{ animation: 'shimmerBar 1.2s ease-in-out infinite' }} />
+                    <div className="h-full w-1/2 bg-white rounded-full" style={{ animation: 'shimmerBar 1.2s ease-in-out infinite' }} />
                   </div>
                 </div>
               )}
@@ -2231,11 +2231,11 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
                         onClick={(e) => { e.stopPropagation(); setPlaybackRate(rate); setSpeedMenuOpen(false); resetTimer(); }}
                         className={`w-full text-left px-4 py-2.5 text-sm transition-all relative ${
                           playbackRate === rate
-                            ? 'text-white font-medium bg-[#e50914]/10'
+                            ? 'text-white font-medium bg-white/10'
                             : 'text-white/45 hover:bg-white/[0.04] hover:text-white/85'
                         }`}
                       >
-                        {playbackRate === rate && <span className="mr-2 text-[#e50914]">&#10003;</span>}
+                        {playbackRate === rate && <span className="mr-2 text-white">&#10003;</span>}
                         {rate === 1 ? 'Normal' : `${rate}×`}
                       </button>
                     ))}
@@ -2496,7 +2496,7 @@ function BlobPlayer({ blobUrl, title }: { blobUrl: string; title: string }) {
         <div className="flex flex-col items-center">
           <h2 className="text-white text-xl font-bold tracking-tight mb-5 text-center px-6 hero-text-shimmer">{title}</h2>
           <div className="w-32 h-[3px] bg-white/10 rounded-full overflow-hidden">
-            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-[#e50914] to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
+            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
           </div>
         </div>
         <button onClick={handleClose} className="absolute top-5 right-5 w-11 h-11 rounded-full bg-white/[0.07] backdrop-blur-xl flex items-center justify-center z-10 hover:bg-white/[0.15] transition-all duration-300 border border-white/[0.08] shadow-lg shadow-black/40">
@@ -2538,9 +2538,9 @@ function BlobPlayer({ blobUrl, title }: { blobUrl: string; title: string }) {
           <div className="h-[120px] bg-gradient-to-t from-black/95 via-black/60 to-transparent" />
           <div ref={progressRef} className="mx-6 md:mx-16 -mt-[105px] mb-4 relative group/progress" onClick={handleProgressClick}>
             <div className="h-[3px] group-hover/progress:h-[6px] bg-white/[0.12] rounded-full transition-all duration-300 cursor-pointer relative overflow-visible" style={{ transition: 'height 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }}>
-              <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-[#e50914]/90 to-[#e50914] rounded-full" style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}>
-                <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-[#e50914]/30 blur-sm opacity-0 group-hover/progress:opacity-100 transition-opacity duration-300" />
-                <div className="absolute right-[-5px] top-1/2 -translate-y-1/2 w-[13px] h-[13px] group-hover/progress:w-[15px] group-hover/progress:h-[15px] bg-white rounded-full opacity-0 group-hover/progress:opacity-100 transition-all duration-300 shadow-lg shadow-[#e50914]/40 border-2 border-[#e50914]" style={{ transition: 'opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }} />
+              <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-white/90 to-white rounded-full" style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}>
+                <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white/30 blur-sm opacity-0 group-hover/progress:opacity-100 transition-opacity duration-300" />
+                <div className="absolute right-[-5px] top-1/2 -translate-y-1/2 w-[13px] h-[13px] group-hover/progress:w-[15px] group-hover/progress:h-[15px] bg-white rounded-full opacity-0 group-hover/progress:opacity-100 transition-all duration-300 shadow-lg shadow-black/40 border-2 border-white" style={{ transition: 'opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }} />
               </div>
             </div>
           </div>
@@ -2693,7 +2693,7 @@ export default function VideoPlayer() {
       <div className="fixed inset-0 z-[2000] bg-[#0a0a0f] flex flex-col items-center justify-center">
         <h2 className="text-white text-2xl md:text-3xl font-bold tracking-tight mb-6 text-center px-6 hero-text-shimmer">{playerTitle}</h2>
         <div className="w-40 h-[3px] bg-white/10 rounded-full overflow-hidden">
-          <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-[#e50914] to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
+          <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
         </div>
       </div>
     );
@@ -2701,7 +2701,7 @@ export default function VideoPlayer() {
 
   if (sourceError && sources.length === 0) {
     return (
-      <div className="fixed inset-0 z-[2000] bg-gradient-to-b from-black via-black/95 to-[#0a0a0f] flex items-center justify-center">
+      <div className="fixed inset-0 z-[2000] bg-gradient-to-b from-black via-black/95 to-black flex items-center justify-center">
         <div className="absolute inset-0 bg-gradient-to-br from-[#e50914]/[0.03] via-transparent to-red-900/[0.04] animate-pulse" style={{ animationDuration: '4s' }} />
         <div className="text-center max-w-sm px-10 relative">
           <div className="w-16 h-16 rounded-2xl bg-red-500/[0.06] flex items-center justify-center mb-7 mx-auto border border-red-500/12 shadow-2xl shadow-red-500/[0.08] animate-pulse" style={{ animationDuration: '3s' }}>

@@ -8,21 +8,16 @@
 /* Tailwind v4 already provides Preflight (CSS reset). */
 
 html {
-  background: #0a0a0f;
+  background: #000;
   color-scheme: dark;
   scroll-behavior: smooth;
 }
 
 body {
-  /* Layered ambient gradients give the dark background depth instead of
-     flat black: a faint cool vignette + a soft red halo up top. */
-  background:
-    radial-gradient(ellipse 90% 50% at 50% -10%, rgba(229, 9, 20, 0.10) 0%, transparent 60%),
-    radial-gradient(ellipse 70% 60% at 50% 100%, rgba(60, 60, 80, 0.06) 0%, transparent 70%),
-    #0a0a0f;
-  background-attachment: fixed;
+  /* Apple TV+: pure flat black. No tints, no halos. */
+  background: #000;
   color: #f5f5f7;
-  font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 16px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -30,10 +25,10 @@ body {
   overflow-x: hidden;
 }
 
-/* ── Display font for hero titles — modern, friendly ── */
+/* ── Hero title — SF Pro, tight like Apple ── */
 .nfx-font-hero {
-  font-family: 'Poppins', 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  letter-spacing: -0.02em;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  letter-spacing: -0.015em;
   font-weight: 700;
 }
 
@@ -53,20 +48,20 @@ body {
   --nfx-duration-fast: 150ms;
   --nfx-duration-slow: 500ms;
 
-  /* Brand — subtle red, used in low-opacity tints */
-  --nfx-red: #e50914;
-  --nfx-red-glow: rgba(229, 9, 20, 0.35);
-  --nfx-accent: #e50914;
-  --nfx-accent-hover: #ff3d47;
-  --nfx-accent-secondary: #e50914;
-  --nfx-accent-soft: rgba(229, 9, 20, 0.14);
+  /* Brand — Apple TV+ is monochrome: white is the accent */
+  --nfx-red: #ffffff;
+  --nfx-red-glow: rgba(255, 255, 255, 0.25);
+  --nfx-accent: #ffffff;
+  --nfx-accent-hover: rgba(255, 255, 255, 0.85);
+  --nfx-accent-secondary: rgba(255, 255, 255, 0.7);
+  --nfx-accent-soft: rgba(255, 255, 255, 0.14);
 
-  /* Surfaces — deep near-black with faint cool tint for depth */
-  --nfx-bg-base: #0a0a0f;
-  --nfx-bg-elevated: #131318;
-  --nfx-bg-card: #1a1a20;
-  --nfx-bg-surface: #22222a;
-  --nfx-bg-hover: #2a2a33;
+  /* Surfaces — Apple neutrals */
+  --nfx-bg-base: #000000;
+  --nfx-bg-elevated: #101012;
+  --nfx-bg-card: #161618;
+  --nfx-bg-surface: #1d1d20;
+  --nfx-bg-hover: #262629;
 
   /* Glass — the core of the aesthetic. Neutral translucent layers. */
   --nfx-glass: rgba(255, 255, 255, 0.05);
@@ -97,11 +92,11 @@ body {
   --nfx-radius-sm: 10px;
   --nfx-radius-lg: 18px;
   --nfx-radius-xl: 24px;
-  --nfx-nav-height: 64px;
+  --nfx-nav-height: 52px;
 
   /* Gradients */
-  --nfx-gradient-brand: linear-gradient(135deg, #e50914 0%, #b00610 100%);
-  --nfx-gradient-glow: radial-gradient(ellipse at center, rgba(229, 9, 20, 0.10) 0%, transparent 70%);
+  --nfx-gradient-brand: linear-gradient(135deg, #ffffff 0%, rgba(255,255,255,0.82) 100%);
+  --nfx-gradient-glow: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
   --nfx-gradient-glass: linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 100%);
 }
 
@@ -121,11 +116,11 @@ body {
 .line-clamp-5 { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* ── Selection ── */
-::selection { background: rgba(229, 9, 20, 0.35); color: #fff; }
+::selection { background: rgba(255, 255, 255, 0.28); color: #fff; }
 
 /* ── Focus outlines ── */
 button:focus-visible, a:focus-visible {
-  outline: 2px solid rgba(229, 9, 20, 0.5);
+  outline: 2px solid rgba(255, 255, 255, 0.6);
   outline-offset: 2px;
 }
 button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
@@ -171,7 +166,7 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
 /* Glow pulse for brand elements */
 @keyframes nfx-glow-pulse {
   0%, 100% { box-shadow: 0 0 8px var(--nfx-red-glow); }
-  50% { box-shadow: 0 0 20px var(--nfx-red-glow), 0 0 40px rgba(229, 9, 20, 0.12); }
+  50% { box-shadow: 0 0 20px var(--nfx-red-glow), 0 0 40px rgba(255, 255, 255, 0.08); }
 }
 
 /* Hero dot indicator pulse */
@@ -197,9 +192,9 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
     0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
-/* Always-on frosted navbar — liquid glass even before scroll */
+/* Always-on frosted navbar — neutral black glass */
 .nfx-glass-frost {
-  background: rgba(20, 20, 28, 0.55);
+  background: rgba(0, 0, 0, 0.50);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   border-bottom: 1px solid var(--nfx-glass-border-soft);
@@ -222,8 +217,7 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
     border-color: var(--nfx-glass-border);
     box-shadow:
       inset 0 1px 0 0 var(--nfx-glass-highlight),
-      0 12px 40px rgba(0, 0, 0, 0.5),
-      0 0 28px rgba(229, 9, 20, 0.12);
+      0 12px 40px rgba(0, 0, 0, 0.5);
     transform: translateY(-3px);
   }
 }
@@ -276,12 +270,12 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
   transform: scale(1.02);
 }
 
-/* Red glow halo — reusable for hovers, active states */
+/* Soft white halo — reusable for hovers, active states */
 .nfx-glow-red {
-  box-shadow: 0 0 24px rgba(229, 9, 20, 0.18);
+  box-shadow: 0 0 24px rgba(255, 255, 255, 0.10);
 }
 .nfx-glow-red-strong {
-  box-shadow: 0 0 32px rgba(229, 9, 20, 0.35);
+  box-shadow: 0 0 32px rgba(255, 255, 255, 0.20);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -292,7 +286,7 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
    top-tier streaming app for maximum contrast and instant recognition. */
 .nfx-btn-play {
   background: #ffffff;
-  color: #0a0a0f;
+  color: #000000;
   border-radius: 999px; /* Apple TV+ capsule */
   font-weight: 700;
   font-size: 18px;
@@ -358,20 +352,16 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
   border-color: var(--nfx-glass-border);
   background: var(--nfx-glass-hover);
   transform: scale(1.08);
-  box-shadow:
-    inset 0 1px 0 0 var(--nfx-glass-highlight),
-    0 0 16px rgba(229, 9, 20, 0.15);
+  box-shadow: inset 0 1px 0 0 var(--nfx-glass-highlight);
 }
 .nfx-circle-btn--play {
   background: var(--nfx-gradient-brand);
   border-color: transparent;
-  color: #fff;
-  box-shadow:
-    inset 0 1px 0 0 rgba(255,255,255,0.2),
-    0 2px 12px rgba(229, 9, 20, 0.3);
+  color: #000;
+  box-shadow: inset 0 1px 0 0 rgba(255,255,255,0.35);
 }
 .nfx-circle-btn--play:hover {
-  background: linear-gradient(135deg, #ff3d47 0%, #e50914 100%);
+  background: #ffffff;
   transform: scale(1.08);
 }
 
@@ -379,7 +369,7 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-left: 3px solid rgba(229, 9, 20, 0.5);
+  border-left: 3px solid rgba(255, 255, 255, 0.35);
   padding: 1px 6px;
   font-size: 11px;
   font-weight: 500;
@@ -394,35 +384,30 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
 .nfx-card-img {
   width: 100%;
   aspect-ratio: 2 / 3;
-  border-radius: var(--nfx-radius);
+  border-radius: 8px;
   overflow: hidden;
   background: var(--nfx-bg-card);
   position: relative;
-  transition: all 400ms var(--nfx-ease);
-  border: 1px solid var(--nfx-glass-border-soft);
-  box-shadow: inset 0 1px 0 0 var(--nfx-glass-highlight);
+  transition: transform 400ms var(--nfx-ease), box-shadow 400ms var(--nfx-ease);
+  border: none;
 }
 
-/* Disney+-style landscape tile (16:9) — used by content rows */
+/* Apple TV+ landscape tile (16:9) — used by content rows */
 .nfx-card-img-landscape {
   aspect-ratio: 16 / 9;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  border: none;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .nfx-card-img:hover {
-    box-shadow:
-      inset 0 1px 0 0 var(--nfx-glass-highlight),
-      0 18px 56px rgba(0, 0, 0, 0.6);
-    transform: scale(1.05);
-    border-color: rgba(255, 255, 255, 0.16);
+    box-shadow: 0 18px 56px rgba(0, 0, 0, 0.6);
+    transform: scale(1.04);
   }
   .nfx-card-img-landscape:hover {
-    /* Apple TV+: clean lift, no colored glow */
-    transform: scale(1.04);
-    border-color: rgba(255, 255, 255, 0.16);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65);
+    /* Apple TV+: clean lift, no glow */
+    transform: scale(1.03);
+    box-shadow: 0 18px 56px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -460,12 +445,12 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
 
 .nfx-top10-wrapper { display: flex; align-items: flex-end; flex-shrink: 0; }
 .nfx-top10-number {
-  font-family: 'Poppins', 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 160px;
   font-weight: 800;
   line-height: 0.85;
   color: transparent;
-  -webkit-text-stroke: 3px rgba(229, 9, 20, 0.32);
+  -webkit-text-stroke: 3px rgba(255, 255, 255, 0.28);
   margin-right: -24px;
   position: relative;
   z-index: 2;
@@ -490,36 +475,24 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
   transition: all 400ms var(--nfx-ease);
 }
 .nfx-nav--scrolled {
-  background: var(--nfx-glass-dark-heavy);
-  backdrop-filter: blur(var(--nfx-blur-heavy)) saturate(180%);
-  -webkit-backdrop-filter: blur(var(--nfx-blur-heavy)) saturate(180%);
-  border-bottom: 1px solid var(--nfx-glass-border-soft);
-  box-shadow: inset 0 1px 0 0 var(--nfx-glass-highlight);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .nfx-nav-link {
   position: relative;
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--nfx-text-secondary);
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.68);
   cursor: pointer;
   transition: color var(--nfx-duration) var(--nfx-ease);
   padding: 6px 0;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.1px;
 }
-.nfx-nav-link:hover { color: #e5e5e9; }
-.nfx-nav-link--active { color: #fff; font-weight: 700; }
-.nfx-nav-link--active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--nfx-accent);
-  border-radius: 1px;
-  box-shadow: 0 0 8px var(--nfx-red-glow);
-}
+.nfx-nav-link:hover { color: #fff; }
+.nfx-nav-link--active { color: #fff; font-weight: 600; }
 
 .nfx-search-input {
   background: transparent;
@@ -552,15 +525,12 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
 .nfx-hero {
   position: relative;
   width: 100%;
-  height: 80vh;
-  max-height: 800px;
-  min-height: 380px;
+  height: 78vh;
+  max-height: 820px;
+  min-height: 420px;
   overflow: hidden;
-  /* Subtle gradient so the hero has depth before the backdrop loads,
-     never flat black. */
-  background:
-    radial-gradient(ellipse 80% 60% at 30% 80%, rgba(229, 9, 20, 0.08) 0%, transparent 60%),
-    linear-gradient(180deg, #14141c 0%, #0a0a0f 100%);
+  /* Apple TV+: flat black base while the backdrop loads */
+  background: #000;
 }
 
 /* ══════════════════════════════════════════════════════════════

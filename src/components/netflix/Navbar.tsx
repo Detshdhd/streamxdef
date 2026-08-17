@@ -200,7 +200,7 @@ export default function Navbar() {
             >
               <Bell className="w-[18px] h-[18px]" />
               {activeDownloadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-[7px] h-[7px] bg-white rounded-full ring-2 ring-[#0a0a0f]" />
+                <span className="absolute top-1.5 right-1.5 w-[7px] h-[7px] bg-white rounded-full ring-2 ring-black" />
               )}
             </button>
 
@@ -212,12 +212,6 @@ export default function Navbar() {
             >
               <button className="flex items-center gap-1.5 cursor-pointer" aria-label="Perfil">
                 <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center overflow-hidden relative border border-white/15">
-                  <img
-                    src="https://i.pravatar.cc/64?img=3"
-                    alt="Perfil"
-                    className="w-full h-full object-cover"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
                   <span className="absolute inset-0 text-white text-xs font-bold flex items-center justify-center">S</span>
                 </div>
                 <ChevronDown
@@ -275,7 +269,7 @@ export default function Navbar() {
             <button
               key={`${item.id}-${item.media_type}`}
               onClick={() => handleSelect(item)}
-              className="flex items-center gap-3 w-full px-4 py-3 hover:bg-[#e50914]/8 transition-colors duration-150 text-left"
+              className="flex items-center gap-3 w-full px-4 py-3 hover:bg-white/8 transition-colors duration-150 text-left"
             >
               {item.poster_path && (
                 <img
@@ -291,7 +285,7 @@ export default function Navbar() {
                 </p>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-[11px] text-white/30">{getYear(item)}</span>
-                  <span className="inline-flex bg-[#e50914]/15 text-[10px] text-[#ff5a63] rounded-full px-1.5 py-[1px]">
+                  <span className="inline-flex bg-white/10 text-[10px] text-white/70 rounded-full px-1.5 py-[1px]">
                     {getTypeLabel(item)}
                   </span>
                 </div>
