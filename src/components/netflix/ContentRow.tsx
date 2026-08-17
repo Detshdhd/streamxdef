@@ -12,9 +12,10 @@ interface ContentRowProps {
 }
 
 /* ────────────────────────────────────────────
-   Content Card — Apple TV+ style
-   Landscape 16:9 tile with rounded corners;
-   title + year BELOW the artwork in small text.
+   Content Card — tv.apple.com/co storefront style
+   Portrait 2:3 poster, square corners (radius 0),
+   title below in 13px/400. Measured from /co:
+   img 151x226 @1440, gap 22px, radius 0.
    ──────────────────────────────────────────── */
 function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number; isTopTen?: boolean }) {
   const handleCardClick = useStore((s) => s.handleCardClick);
@@ -26,24 +27,20 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
 
   const isFav = myList.some(m => m.id === item.id);
   const title = item.title || item.name || '';
-  const year = (item.release_date || item.first_air_date || '').substring(0, 4);
 
-  // Apple TV+ tiles: landscape 16:9, wider than portrait posters
-  const cardWidth = 'w-[230px] sm:w-[280px] md:w-[310px] lg:w-[330px]';
+  // /co poster tiles are narrow (151px at 1440 viewport)
+  const cardWidth = 'w-[140px] sm:w-[150px] md:w-[162px] lg:w-[172px]';
 
-  // Prefer the backdrop for landscape tiles; fall back to the poster
-  // (cropped by object-cover) when no backdrop exists.
-  const imgPath = item.backdrop_path || item.poster_path;
+  // Portrait poster; fall back to the backdrop (cropped by object-cover).
+  const imgPath = item.poster_path || item.backdrop_path;
 
   if (!imgPath || imgError) {
     return (
       <div className={`${cardWidth} shrink-0`}>
-        <div className="nfx-card-img nfx-card-img-landscape flex items-center justify-center">
+        <div className="nfx-card-img flex items-center justify-center">
           <span className="text-white/25 text-[11px] font-medium text-center px-4 leading-snug">{title}</span>
         </div>
-        {/* Caption below — same as loaded cards */}
-        <p className="text-white text-[13px] font-medium leading-tight mt-2 truncate">{title}</p>
-        {year && <p className="text-white/45 text-[12px] mt-[1px] truncate">{year}</p>}
+        <p className="text-white/85 text-[13px] font-normal leading-tight mt-2 truncate">{title}</p>
       </div>
     );
   }
@@ -55,7 +52,7 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
       onMouseLeave={() => setIsHovered(false)}
     >
       <div
-        className="nfx-card-img nfx-card-img-landscape cursor-pointer"
+        className="nfx-card-img cursor-pointer"
         onClick={() => handleCardClick(item)}
         role="button"
         tabIndex={0}
@@ -63,7 +60,7 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
       >
         {!imgLoaded && <div className="absolute inset-0 skeleton-shimmer" />}
         <img
-          src={`https://image.tmdb.org/t/p/w300${imgPath}`}
+          src={`https://image.tmdb.org/t/p/w342${imgPath}`}
           alt={title}
           className="w-full h-full object-cover transition-opacity duration-300"
           style={{ opacity: imgLoaded ? 1 : 0 }}
@@ -72,7 +69,7 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
           loading="lazy"
         />
 
-        {/* Top-10 rank on the artwork (Apple TV+: white on dark glass) */}
+        {/* Top-10 rank on the artwork (Apple: white on dark glass) */}
         {isTopTen && index < 10 && (
           <div className="absolute top-2 left-2 z-20 bg-black/55 backdrop-blur-sm rounded-md px-2 py-[3px]">
             <span className="text-white text-[12px] font-bold leading-none">{index + 1}</span>
@@ -110,18 +107,11 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
         </div>
       </div>
 
-      {/* ── Apple TV+: caption BELOW the artwork — title white,
-           metadata gray, never on top of the image ── */}
-      <div className="mt-2">
-        <p className="text-white text-[13px] md:text-[13.5px] font-medium leading-tight line-clamp-1">
-          {title}
-        </p>
-        {year && (
-          <p className="text-white/45 text-[11.5px] md:text-[12px] mt-[1px] line-clamp-1">
-            {year}
-          </p>
-        )}
-      </div>
+      {/* ── tv.apple.com/co caption BELOW the poster:
+           13px / 400, title only, single line ── */}
+      <p className="text-white/85 text-[13px] font-normal leading-tight mt-2 line-clamp-1">
+        {title}
+      </p>
     </div>
   );
 }
@@ -159,18 +149,11 @@ export default function ContentRow({ title, items, isTopTen, rowIndex = 0 }: Con
       style={mounted ? { animationDelay: `${rowIndex * 60}ms` } : undefined}
       suppressHydrationWarning
     >
-      {/* Row title — Apple TV+ shelf header: bold, larger, with chevron */}
+      {/* Row title — tv.apple.com/co shelf header: plain 17px/700, no chevron */}
       <div className="px-[3%] mb-[10px] md:mb-[12px]">
-        <button
-          type="button"
-          onClick={() => scroll('right')}
-          className="group/header flex items-center gap-1.5 select-none"
-        >
-          <h2 className="text-white font-bold text-[19px] md:text-[24px] tracking-[-0.01em] group-hover/header:text-white/90 transition-colors">
-            {title}
-          </h2>
-          <ChevronRight className="w-[18px] h-[18px] md:w-5 md:h-5 text-white/40 group-hover/header:text-white/80 transition-all duration-200 group-hover/header:translate-x-0.5" />
-        </button>
+        <h2 className="text-white font-bold text-[17px] tracking-[-0.01em] select-none">
+          {title}
+        </h2>
       </div>
 
       {/* Scrollable container */}
@@ -189,7 +172,7 @@ export default function ContentRow({ title, items, isTopTen, rowIndex = 0 }: Con
         <div
           ref={scrollRef}
           onScroll={checkScroll}
-          className="flex gap-[12px] md:gap-[16px] overflow-x-auto px-[3%] pb-1 scrollbar-hide"
+          className="flex gap-[14px] md:gap-[22px] overflow-x-auto px-[3%] pb-1 scrollbar-hide"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {items.map((item, idx) => (

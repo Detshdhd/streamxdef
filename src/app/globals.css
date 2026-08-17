@@ -384,7 +384,8 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
 .nfx-card-img {
   width: 100%;
   aspect-ratio: 2 / 3;
-  border-radius: 8px;
+  /* tv.apple.com/co poster tiles: measured border-radius 0px */
+  border-radius: 0;
   overflow: hidden;
   background: var(--nfx-bg-card);
   position: relative;
@@ -392,10 +393,10 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
   border: none;
 }
 
-/* Apple TV+ landscape tile (16:9) — used by content rows */
+/* Landscape tile (16:9) — used by Up Next / continue-watching rows */
 .nfx-card-img-landscape {
   aspect-ratio: 16 / 9;
-  border-radius: 8px;
+  border-radius: 0;
   border: none;
 }
 

@@ -256,7 +256,7 @@ export default function DetailModal() {
           </button>
 
           {/* Hero backdrop — 16:9 */}
-          <div className="relative w-full aspect-[16/9] bg-[#1a1a20] overflow-hidden shrink-0">
+          <div className="relative w-full aspect-[16/9] bg-[#161618] overflow-hidden shrink-0">
             {backdrop ? (
               <img
                 src={`https://image.tmdb.org/t/p/w1280${backdrop}`}
@@ -340,7 +340,7 @@ export default function DetailModal() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 md:gap-3 text-[13px] mb-3 flex-wrap">
                     {rating > 0 && (
-                      <span className="text-[#34d399] font-bold">{Math.round(rating * 10)}% Relevante</span>
+                      <span className="text-white/70 font-bold">{Math.round(rating * 10)}% Relevante</span>
                     )}
                     <span className="text-white/50">{year}</span>
                     {runtime && runtime > 0 && (
@@ -486,7 +486,7 @@ export default function DetailModal() {
                             loading="lazy"
                           />
                         ) : (
-                          <div className="w-[112px] md:w-[130px] aspect-video rounded-lg shrink-0 bg-[#22222a] flex items-center justify-center">
+                          <div className="w-[112px] md:w-[130px] aspect-video rounded-lg shrink-0 bg-[#1d1d20] flex items-center justify-center">
                             <Play className="w-4 h-4 text-white/20" />
                           </div>
                         )}

@@ -1808,7 +1808,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
 
       {/* ─── ERROR STATE — Clean liquid glass ─── */}
       {error && (
-        <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center bg-[#0a0a0f]">
+        <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center bg-black">
           <div className="text-center max-w-md px-10">
             <div className="w-16 h-16 rounded-2xl glass flex items-center justify-center mb-7 mx-auto">
               <AlertCircle className="w-8 h-8 text-white/70" />
@@ -1829,7 +1829,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
 
       {/* ─── PREPARING — Cinematic title shimmer ─── */}
       {sources.length === 0 && !error && (
-        <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center bg-[#0a0a0f]">
+        <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center bg-black">
           <h2 className="text-white text-2xl md:text-3xl font-bold tracking-tight mb-6 text-center px-6 hero-text-shimmer">{title}</h2>
           <div className="w-40 h-[3px] bg-white/10 rounded-full overflow-hidden">
             <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
@@ -1850,7 +1850,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
                 onClick={() => { if (season && episode) playEpisode(season, episode + 1); setNextEpisodeCountdown(null); }}
                 className="nfx-btn-play !h-10 !text-sm !px-5"
               >
-                <Play className="w-4 h-4 fill-[#0a0a0f] text-[#0a0a0f]" />
+                <Play className="w-4 h-4 fill-black text-black" />
                 <span>Reproducir ahora</span>
               </button>
               <button
@@ -2690,7 +2690,7 @@ export default function VideoPlayer() {
 
   if (sourceLoading || !sourcesMatch) {
     return (
-      <div className="fixed inset-0 z-[2000] bg-[#0a0a0f] flex flex-col items-center justify-center">
+      <div className="fixed inset-0 z-[2000] bg-black flex flex-col items-center justify-center">
         <h2 className="text-white text-2xl md:text-3xl font-bold tracking-tight mb-6 text-center px-6 hero-text-shimmer">{playerTitle}</h2>
         <div className="w-40 h-[3px] bg-white/10 rounded-full overflow-hidden">
           <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />

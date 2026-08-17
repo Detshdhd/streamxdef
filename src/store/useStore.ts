@@ -76,11 +76,11 @@ export type ActiveTab = 'inicio' | 'peliculas' | 'series' | 'mi-lista' | 'descar
 
 // Source blacklist — items that have no working sources
 const BLACKLIST_KEY = 'streamx-no-sources';
-// Bumped after the source-check fix for TV: the old list blacklisted
-// every series (the check never passed season/episode), so we wipe it
-// once on load so series reappear immediately.
-const BLACKLIST_VERSION_KEY = 'streamx-bl-v3';
-const BLACKLIST_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+// Bumped to v4: entries used to live 7 days, so a single transient failure
+// (e.g. Cloudflare rate-limiting Vidrock for a few hours) hid a title from
+// search and home rows for a whole week even though its servers were back.
+const BLACKLIST_VERSION_KEY = 'streamx-bl-v4';
+const BLACKLIST_TTL = 6 * 60 * 60 * 1000; // 6 hours
 
 interface BlacklistEntry {
   id: number;

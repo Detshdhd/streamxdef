@@ -223,9 +223,9 @@ function ContinueWatchingRow({ items }: { items: ContinueWatchingItem[] }) {
 
   return (
     <div className="mb-[34px] md:mb-[46px]">
-      {/* Header matching the other rows (bold shelf header) */}
+      {/* Header matching the other rows (17px/700 like tv.apple.com/co) */}
       <div className="px-[3%] mb-[10px] md:mb-[12px]">
-        <h2 className="text-white font-bold text-[19px] md:text-[24px] tracking-[-0.01em] select-none flex items-center gap-1.5">
+        <h2 className="text-white font-bold text-[17px] tracking-[-0.01em] select-none flex items-center gap-1.5">
           Seguir viendo
         </h2>
       </div>
@@ -330,7 +330,7 @@ function MiListaTab() {
                   loading="lazy"
                 />
               ) : (
-                <div className="w-full h-full bg-[#22222a] flex items-center justify-center">
+                <div className="w-full h-full bg-[#1d1d20] flex items-center justify-center">
                   <span className="text-white/20 text-xs">{item.title || item.name}</span>
                 </div>
               )}
@@ -353,7 +353,6 @@ function MiListaTab() {
 /* ── Search Tab ── */
 function SearchTab() {
   const handleCardClick = useStore((s) => s.handleCardClick);
-  const noSourceIds = useStore((s) => s.noSourceIds);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<MediaItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -368,15 +367,18 @@ function SearchTab() {
         const res = await fetch(`/api/tmdb?type=search&query=${encodeURIComponent(query)}`);
         const data = await res.json();
         
-        // Filter: only movies and series with poster, good IMDB rating, and not blacklisted
+        // Filter: only movies and series with poster and good ratings.
+        // NOTE: no historical blacklist here — availability is verified live
+        // via /api/source-check below, so a past transient failure (e.g. a
+        // few hours of Cloudflare blocking Vidrock) must not hide a title
+        // whose servers are back.
         const filtered = (data.results || []).filter(
           (item: { media_type: string; poster_path: string | null; vote_average?: number; vote_count?: number; id?: number }) =>
-            (item.media_type === 'movie' || item.media_type === 'tv') && 
+            (item.media_type === 'movie' || item.media_type === 'tv') &&
             item.poster_path &&
             (item.vote_average || 0) >= MIN_RATING &&
             (item.vote_count || 0) >= MIN_VOTE_COUNT &&
-            item.id &&
-            !noSourceIds.has(item.id)
+            item.id
         ).slice(0, 20) as MediaItem[];
 
         // Check source availability for the top results via source-check API
@@ -425,7 +427,7 @@ function SearchTab() {
       setIsSearching(false);
     }, 300);
     return () => clearTimeout(timer);
-  }, [query, noSourceIds]);
+  }, [query]);
 
   const handleSelect = (item: MediaItem) => {
     handleCardClick(item);
@@ -452,7 +454,7 @@ function SearchTab() {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar películas y series..."
             autoFocus
-            className="w-full bg-[#1a1a20] border border-white/10 rounded-xl text-white text-[16px] py-3 pl-11 pr-4 outline-none focus:border-white/30 transition-colors placeholder:text-white/20"
+            className="w-full bg-[#161618] border border-white/10 rounded-xl text-white text-[16px] py-3 pl-11 pr-4 outline-none focus:border-white/30 transition-colors placeholder:text-white/20"
           />
         </div>
         {query && (
@@ -483,37 +485,37 @@ function SearchTab() {
       )}
 
       {results.length > 0 && (
-        <div className="space-y-2">
+        <div
+          className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-x-[14px] md:gap-x-[22px] gap-y-6"
+        >
           {results.map((item) => (
             <button
               key={`${item.id}-${item.media_type}`}
               onClick={() => handleSelect(item)}
-              className="flex items-center gap-3 w-full px-3 py-2.5 hover:bg-white/8 rounded-xl transition-colors text-left"
+              className="text-left group"
             >
-              {item.poster_path && (
-                <img
-                  src={`https://image.tmdb.org/t/p/w92${item.poster_path}`}
-                  alt=""
-                  className="w-[45px] h-[68px] object-cover shrink-0 rounded-[3px]"
-                  loading="lazy"
-                />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="text-white text-[14px] truncate font-medium">
-                  {item.title || item.name || ''}
-                </p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[12px] text-white/40">{getYear(item)}</span>
-                  <span className="inline-block bg-white/10 text-[10px] text-white/70 rounded-full px-1.5 py-[1px]">
-                    {isTv(item) ? 'Serie' : 'Película'}
-                  </span>
-                  {item.vote_average > 0 && (
-                    <span className="text-[11px] text-[#34d399] font-medium">
-                      {item.vote_average.toFixed(1)}
+              <div className="nfx-card-img">
+                {item.poster_path ? (
+                  <img
+                    src={`https://image.tmdb.org/t/p/w342${item.poster_path}`}
+                    alt=""
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center px-2">
+                    <span className="text-white/25 text-[11px] text-center leading-snug line-clamp-3">
+                      {item.title || item.name || ''}
                     </span>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
+              <p className="text-white/85 text-[13px] font-normal leading-tight mt-2 line-clamp-1">
+                {item.title || item.name || ''}
+              </p>
+              <p className="text-white/45 text-[12px] mt-[1px] line-clamp-1">
+                {[getYear(item), isTv(item) ? 'Serie' : 'Película'].filter(Boolean).join(' · ')}
+              </p>
             </button>
           ))}
         </div>
@@ -590,10 +592,10 @@ function DownloadsTab() {
         {downloads.map((dl) => (
           <div
             key={dl.id}
-            className="flex items-center gap-4 p-3 bg-[#1a1a20] rounded-xl group hover:bg-[#22222a] transition-colors"
+            className="flex items-center gap-4 p-3 bg-[#161618] rounded-xl group hover:bg-[#1d1d20] transition-colors"
           >
             <div
-              className="w-[60px] h-[90px] rounded-lg overflow-hidden shrink-0 bg-[#22222a] cursor-pointer"
+              className="w-[60px] h-[90px] rounded-lg overflow-hidden shrink-0 bg-[#1d1d20] cursor-pointer"
               onClick={() => dl.status === 'completed' ? handlePlay(dl) : undefined}
             >
               {dl.poster_path ? (
@@ -624,7 +626,7 @@ function DownloadsTab() {
                   <><Loader2 className="w-3 h-3 text-[#f5b342] animate-spin" /><span className="text-[#f5b342] text-[11px]">{dl.progress}% descargando...</span></>
                 )}
                 {dl.status === 'completed' && (
-                  <><CheckCircle className="w-3 h-3 text-[#34d399]" /><span className="text-[#34d399] text-[11px]">Descargado</span></>
+                  <><CheckCircle className="w-3 h-3 text-white/60" /><span className="text-white/60 text-[11px]">Descargado</span></>
                 )}
                 {dl.status === 'error' && (
                   <><AlertCircle className="w-3 h-3 text-red-400" /><span className="text-red-400 text-[11px]">{dl.error || 'Error'}</span></>
