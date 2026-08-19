@@ -65,20 +65,17 @@ function setCachedSources(key: string, sources: SourceInfo[]) {
 function proxyUrl(originalUrl: string): string {
   const url = originalUrl.toLowerCase();
 
-  // vimeos CDN (Vimeus Latino, rotates TLDs: .net/.zip/…): blocks non-browser
-  // TLS fingerprints — our server proxy gets 403 — but sends
-  // Access-Control-Allow-Origin: *. The browser MUST stream these DIRECTLY.
-  if (url.includes('vimeos.')) {
-    return originalUrl;
-  }
-
   // These domains MUST go through our proxy (need correct Referer)
   const mustProxy = ['hakunaymatata', 'goodstream', 'voe', 'filemoon', 'ironwallnet', 'vidrock', 'workers.dev', 'vidvault', '1shows.app', 'tiktokcdn'];
   if (mustProxy.some(d => url.includes(d))) {
     return `/api/proxy?url=${encodeURIComponent(originalUrl)}`;
   }
 
-  // All others → proxy through our server
+  // All others (incl. vimeos CDN hosts — p5.vimeos.zip / s9.vimeos.net /
+  // vimeos.zip) → proxy through our server. The token is minted server-side
+  // by /api/source, so our proxy CAN fetch the CDN; the browser can't
+  // (no Referer → hangs/403). The old direct-bypass here was for the
+  // pre-extraction era when vimeos only worked as an iframe embed.
   return `/api/proxy?url=${encodeURIComponent(originalUrl)}`;
 }
 
