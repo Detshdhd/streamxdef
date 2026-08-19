@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { Facebook, Instagram, Youtube, Play, Trash2, AlertCircle, CheckCircle, Loader2, X as XIcon, Search, Heart, Download, Sparkles } from 'lucide-react';
+import { Facebook, Instagram, Youtube, Play, Trash2, AlertCircle, CheckCircle, Loader2, X as XIcon, Search, Heart, Download, Sparkles, ChevronRight } from 'lucide-react';
 import Navbar from '@/components/netflix/Navbar';
 import HeroBanner from '@/components/netflix/HeroBanner';
 import ContentRow from '@/components/netflix/ContentRow';
@@ -132,16 +132,89 @@ function SkeletonRow() {
 
 function SkeletonHero() {
   return (
-    <div className="nfx-hero">
-      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black" />
-      <div className="absolute bottom-[12%] left-[4%] space-y-3">
-        <div className="h-[48px] w-64 bg-white/[0.04] rounded-lg animate-pulse" />
-        <div className="h-3 w-80 bg-white/[0.04] rounded-lg animate-pulse" />
-        <div className="h-3 w-52 bg-white/[0.04] rounded-lg animate-pulse" />
-        <div className="flex gap-3 mt-2">
-          <div className="h-[44px] w-36 bg-white/[0.04] rounded-full animate-pulse" />
-          <div className="h-[44px] w-44 bg-white/[0.04] rounded-full animate-pulse" />
-        </div>
+    <div className="nfx-featured" aria-label="Cargando destacados">
+      <div className="nfx-featured-track">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <div key={index} className="nfx-featured-card skeleton-shimmer" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ViewAllGrid({ section, onClose }: {
+  section: { title: string; type: string; filter: 'movie' | 'tv' | 'all' };
+  onClose: () => void;
+}) {
+  const handleCardClick = useStore((s) => s.handleCardClick);
+  const noSourceIds = useStore((s) => s.noSourceIds);
+  const [items, setItems] = useState<MediaItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([1, 2, 3].map((page) =>
+      fetch(`/api/tmdb?type=${encodeURIComponent(section.type)}&page=${page}`)
+        .then((response) => response.json())
+        .catch(() => ({ results: [] }))
+    )).then((pages) => {
+      if (cancelled) return;
+      const seen = new Set<number>();
+      const nextItems: MediaItem[] = [];
+      for (const page of pages) {
+        for (const item of (page.results || []) as MediaItem[]) {
+          const mediaType = item.media_type || (item.name && !item.title ? 'tv' : 'movie');
+          if (seen.has(item.id) || !item.poster_path || mediaType !== (section.filter === 'all' ? mediaType : section.filter)) continue;
+          if ((item.vote_average || 0) < MIN_RATING || (item.vote_count || 0) < MIN_VOTE_COUNT || noSourceIds.has(item.id)) continue;
+          seen.add(item.id);
+          nextItems.push({ ...item, media_type: mediaType });
+        }
+      }
+      setItems(nextItems);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [section.type, section.filter, noSourceIds]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[1500] bg-[#1f1f1f] overflow-y-auto animate-nfx-fade-in">
+      <div className="sticky top-0 z-10 bg-[#1f1f1f]/95 backdrop-blur-md border-b border-white/[0.08] px-[3%] py-4 flex items-center justify-between">
+        <h1 className="nfx-font-hero text-[22px] md:text-[28px] text-white">{section.title}</h1>
+        <button type="button" onClick={onClose} className="w-10 h-10 rounded-full bg-white/[0.08] hover:bg-white/[0.16] flex items-center justify-center text-white/70 hover:text-white" aria-label="Cerrar">
+          <XIcon className="w-5 h-5" />
+        </button>
+      </div>
+      <div className="px-[3%] py-6">
+        {loading && items.length === 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-5">
+            {Array.from({ length: 18 }).map((_, index) => <div key={index} className="aspect-[2/3] rounded-xl skeleton-shimmer" />)}
+          </div>
+        ) : items.length === 0 ? (
+          <p className="text-white/40 text-center py-20">No hay contenido disponible</p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-5">
+            {items.map((item) => (
+              <button key={`${item.id}-${item.media_type}`} type="button" onClick={() => handleCardClick(item)} className="text-left group">
+                <div className="nfx-card-img">
+                  <img src={`https://image.tmdb.org/t/p/w342${item.poster_path}`} alt={item.title || item.name || ''} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" loading="lazy" />
+                  <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"><Play className="w-8 h-8 fill-white text-white" /></div>
+                </div>
+                <p className="text-white/85 text-[13px] font-medium leading-tight mt-2 line-clamp-1">{item.title || item.name || ''}</p>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -222,12 +295,12 @@ function ContinueWatchingRow({ items }: { items: ContinueWatchingItem[] }) {
   };
 
   return (
-    <div className="mb-[34px] md:mb-[46px]">
-      {/* Header matching the other rows (17px/700 like tv.apple.com/co) */}
-      <div className="px-[3%] mb-[10px] md:mb-[12px]">
-        <h2 className="text-white font-bold text-[17px] tracking-[-0.01em] select-none flex items-center gap-1.5">
+    <div className="mb-[28px] md:mb-[22px]">
+      <div className="nfx-row-heading px-[3%] mb-[12px]">
+        <h2 className="text-white/[0.94] font-semibold text-[20px] tracking-[-0.015em] select-none">
           Seguir viendo
         </h2>
+        <ChevronRight className="w-5 h-5 text-white/70" aria-hidden="true" />
       </div>
       <div className="flex gap-[12px] md:gap-[16px] overflow-x-auto px-[3%] pb-1 scrollbar-hide">
         {items.map((cw) => {
@@ -360,7 +433,10 @@ function SearchTab() {
   const checkedRef = useRef<Set<string>>(new Set()); // Cache checked queries
 
   useEffect(() => {
-    if (!query.trim()) { setResults([]); return; }
+    if (!query.trim()) {
+      setTimeout(() => setResults([]), 0);
+      return;
+    }
     const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
@@ -684,12 +760,12 @@ export default function Home() {
 
   const [sections, setSections] = useState<ContentSection[]>([]);
   const [trendingItems, setTrendingItems] = useState<MediaItem[]>([]);
+  const [viewAllSection, setViewAllSection] = useState<{ title: string; type: string; filter: 'movie' | 'tv' | 'all' } | null>(null);
   const [sourceCheckedIds, setSourceCheckedIds] = useState<Set<number>>(new Set());
   const sourceCheckInProgress = useRef(false);
   // Avoid SSR/CSR hydration mismatch: continue-watching comes from
   // localStorage which is only available on the client.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  const [mounted] = useState(true);
 
   // ── LAZY loading: only a few rows load on mount; the rest load as the
   // user approaches the bottom (IntersectionObserver on a sentinel). This
@@ -717,8 +793,10 @@ export default function Home() {
   // Reset lazy-loading state when the tab changes
   useEffect(() => {
     fetchedTypesRef.current = new Set();
-    setLoadedCount(INITIAL_ROWS);
-    setSourceCheckedIds(new Set());
+    setTimeout(() => {
+      setLoadedCount(INITIAL_ROWS);
+      setSourceCheckedIds(new Set());
+    }, 0);
   }, [activeTab, getActiveSections]);
 
   // Load sections up to `loadedCount` (lazy). Trending (hero) is always
@@ -730,7 +808,7 @@ export default function Home() {
 
     // Initialize slots + set visible ones to loading state (but keep the
     // data already loaded for rows that are still in view)
-    setSections(prev => activeSections.map((s, idx) => {
+    setTimeout(() => setSections(prev => activeSections.map((s, idx) => {
       const existing = prev.find(p => p.type === s.type);
       const loading = idx < loadedCount && !(existing && existing.data.length > 0);
       return {
@@ -738,7 +816,7 @@ export default function Home() {
         data: existing?.data || [],
         loading,
       };
-    }));
+    })), 0);
 
     // ── LOCAL CACHE with stale-while-revalidate ──
     // Sections are cached in localStorage (trending 5 min, lists 1 h).
@@ -991,7 +1069,7 @@ export default function Home() {
   // Special tab content
   if (activeTab === 'buscar') {
     return (
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen bg-[#1f1f1f]">
         <Navbar />
         <div className="pt-[64px]">
           <SearchTab />
@@ -1004,7 +1082,7 @@ export default function Home() {
 
   if (activeTab === 'mi-lista') {
     return (
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen bg-[#1f1f1f]">
         <Navbar />
         <div className="pt-[64px]">
           <MiListaTab />
@@ -1017,7 +1095,7 @@ export default function Home() {
 
   if (activeTab === 'descargas') {
     return (
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen bg-[#1f1f1f]">
         <Navbar />
         <div className="pt-[64px]">
           <DownloadsTab />
@@ -1029,7 +1107,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-black flex flex-col">
+    <div className="min-h-screen bg-[#1f1f1f] flex flex-col">
       <Navbar />
 
       {/* Hero */}
@@ -1062,6 +1140,7 @@ export default function Home() {
                 items={section.data}
                 isTopTen={section.isTopTen}
                 rowIndex={idx}
+                onViewAll={() => setViewAllSection({ title: section.title, type: section.type, filter: section.filter || 'all' })}
               />
             )
           )
@@ -1077,6 +1156,7 @@ export default function Home() {
 
       <DetailModal />
       <VideoPlayer />
+      {viewAllSection && <ViewAllGrid section={viewAllSection} onClose={() => setViewAllSection(null)} />}
     </div>
   );
 }

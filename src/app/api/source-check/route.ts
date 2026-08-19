@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * /api/source-check
  * 
  * Batch source availability check using Vimeus.
- * Vimeus is RELIABLE — it only lists actual content with real embeds.
+ * Vimeus is RELIABLE — it only lists actual content with playable sources.
  * Vidrock returns data for every TMDB ID (even non-existent), so it's unreliable.
  * 
  * Results are cached in-memory for 30 minutes.
@@ -24,7 +24,7 @@ function getCacheKey(id: number, type: string): string {
 }
 
 /**
- * Check Vimeus: fetch the embed page and check for actual embeds.
+ * Check Vimeus: fetch the provider page and check for actual sources.
  */
 async function checkVimeus(tmdbId: number, type: string, season?: string, episode?: string): Promise<boolean> {
   const contentType = type === 'tv' ? 'serie' : 'movie';
@@ -55,8 +55,8 @@ async function checkVimeus(tmdbId: number, type: string, season?: string, episod
 
     try {
       const vimeusData = JSON.parse(dataMatch[1]);
-      const embeds = vimeusData.embeds || [];
-      return embeds.length > 0 && embeds.some((e: { url?: string }) => e.url);
+      const sources = vimeusData.embeds || [];
+      return sources.length > 0 && sources.some((e: { url?: string }) => e.url);
     } catch {
       return false;
     }

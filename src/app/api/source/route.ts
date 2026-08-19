@@ -27,11 +27,8 @@ export const preferredRegion = 'iad1';
 interface ResolvedSource {
   name: string;
   url: string;
-  // 'hls' | 'mp4' → direct stream URL played by our hls.js player.
-  // 'embed' → third-party player page (vimeos.net) rendered in an iframe;
-  //           its signed tokens only validate when the page itself loads in
-  //           the user's browser, so we embed rather than extract.
-  type: 'hls' | 'mp4' | 'embed';
+  // Direct stream URL played by the native hls.js player.
+  type: 'hls' | 'mp4';
   quality?: string;
   language: string | null;
 }
@@ -345,15 +342,11 @@ async function extractStreamFromEmbed(embedUrl: string, timeoutMs = 2000): Promi
 
 /* ═══════════════════════════════════════════════════════════════════
    VIMEOS DIRECT EXTRACTION
-   The vimeos.net embed page carries the signed master.m3u8 inside a
+   The vimeos.net provider page carries the signed master.m3u8 inside a
    P.A.C.K.E.R.-obfuscated jwplayer setup. The CDN token is minted per
-   embed-page load, and the origin poisons a random share of the tokens
-   it hands to non-browser clients (measured: ~70% of mints validate,
-   ~30% answer 403 — independent of host, headers and file). So we
-   re-mint in PARALLEL (4 attempts) and keep the first master that
-   answers 200: >99% success in ~1.5s. Same playback model as Vidrock —
-   our proxy fetches the segments, so the user's browser gets a clean
-   hls.js stream with NO vimeos iframe and NO third-party ads.
+   provider-page load, and the origin poisons a random share of the tokens
+   it hands to non-browser clients. We re-mint in parallel and keep the
+   first master that answers 200, then route playback through our proxy.
    ═══════════════════════════════════════════════════════════════════ */
 
 const VIMEOS_EMBED_HEADERS: Record<string, string> = {
@@ -446,14 +439,21 @@ async function mintVimeosMaster(embedUrl: string): Promise<string | null> {
 
 /**
  * Extract a DIRECT m3u8 from a vimeos embed. Fire 6 mint attempts in
- * parallel and keep the first that validates — measured ~70% per-mint
- * success on healthy mirrors, so 6 attempts land ≥99% overall in ~1.5s.
+ * parallel and return the FIRST that validates (early-exit race) —
+ * measured ~70% per-mint success on healthy mirrors, so latency is
+ * typically one mint (~0.6-0.9s) instead of waiting for the slowest.
  */
 async function extractVimeosDirect(embedUrl: string): Promise<string | null> {
-  const attempts = await Promise.all(
-    Array.from({ length: 6 }, () => mintVimeosMaster(embedUrl))
-  );
-  return attempts.find((url): url is string => url !== null) ?? null;
+  const attempts = Array.from({ length: 6 }, async () => {
+    const url = await mintVimeosMaster(embedUrl);
+    if (!url) throw new Error('mint failed');
+    return url;
+  });
+  try {
+    return await Promise.any(attempts);
+  } catch {
+    return null;
+  }
 }
 
 function getServerDisplayName(embed: VimeusEmbed, index: number): string {
@@ -579,11 +579,8 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
 
     const allSources: ResolvedSource[] = [];
 
-    // VIMEOS.NET (Vimeus' own player) — extract the signed master.m3u8
-    // DIRECTLY (extractVimeosDirect). The resulting source plays through
-    // our proxy in the native hls.js player: no vimeos iframe, no
-    // third-party ads. Only when every parallel mint fails do we fall
-    // back to the iframe passthrough below (type 'embed', sorted last).
+    // VIMEOS.NET (Vimeus' own provider) — extract the signed master.m3u8
+    // directly. If every parallel mint fails, omit that source until a retry.
     const vimeosEmbeds = sortedEmbeds.filter(e => e.url.includes('vimeos.'));
     for (const embed of vimeosEmbeds) {
       const directUrl = await extractVimeosDirect(embed.url);
@@ -597,14 +594,7 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
           language: embed.lang || 'Latino',
         });
       } else {
-        console.log(`[Vimeus] ⚠️ direct extraction failed — iframe fallback: ${embed.url}`);
-        allSources.push({
-          name: getServerDisplayName(embed, 0),
-          url: embed.url,
-          type: 'embed',
-          quality: embed.quality || undefined,
-          language: embed.lang || 'Latino',
-        });
+        console.log(`[Vimeus] ⚠️ direct extraction failed for ${embed.url}`);
       }
     }
     const extractableEmbeds = sortedEmbeds.filter(e => !e.url.includes('vimeos.'));
@@ -746,12 +736,6 @@ function combineAndSort(vimeusSources: ResolvedSource[], vidrockSources: Resolve
   }
 
   allSources.sort((a, b) => {
-    // Third-party embed players (vimeos Latino, with their own ads) are
-    // LAST-RESORT: only reachable when the user explicitly picks Spanish
-    // from the language menu. Never the auto-loaded first source.
-    const embedDiff = (a.type === 'embed' ? 1 : 0) - (b.type === 'embed' ? 1 : 0);
-    if (embedDiff !== 0) return embedDiff;
-
     // Primary: CDN health rank (0 healthy Vidrock → 9 dead 1shows.app)
     const rankDiff = getSourceRank(a.url) - getSourceRank(b.url);
     if (rankDiff !== 0) return rankDiff;

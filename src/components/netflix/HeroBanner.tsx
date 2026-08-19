@@ -12,7 +12,6 @@ const ROTATION_INTERVAL = 8000; // 8 seconds per slide
 
 export default function HeroBanner({ items }: HeroBannerProps) {
   const { selectItem, openDetail, playMovie } = useStore();
-  const [loaded, setLoaded] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
@@ -22,7 +21,7 @@ export default function HeroBanner({ items }: HeroBannerProps) {
     const pool = items.filter(
       (i) => i.backdrop_path && (i.title || i.name) && i.vote_average > 6.5
     );
-    return pool.length > 0 ? pool.slice(0, 6) : items.filter((i) => i.backdrop_path).slice(0, 6);
+    return pool.length > 0 ? pool.slice(0, 5) : items.filter((i) => i.backdrop_path).slice(0, 5);
   }, [items]);
 
   const item = candidates[currentIndex] || null;
@@ -40,8 +39,6 @@ export default function HeroBanner({ items }: HeroBannerProps) {
     return () => clearInterval(timer);
   }, [candidates.length]);
 
-  useEffect(() => { setLoaded(false); }, [item?.id]);
-
   const goTo = useCallback((idx: number) => {
     if (idx === currentIndex) return;
     setIsTransitioning(true);
@@ -58,84 +55,67 @@ export default function HeroBanner({ items }: HeroBannerProps) {
   const isTV = item.media_type === 'tv' || !!item.name;
 
   return (
-    <div className="nfx-hero">
-      {/* Backdrop with Ken Burns */}
-      <div className={`absolute inset-0 transition-opacity duration-500 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
-        {item.backdrop_path && (
-          <img
-            src={`https://image.tmdb.org/t/p/w780${item.backdrop_path}`}
-            alt=""
-            className={`w-full h-full object-cover animate-ken-burns transition-opacity duration-[800ms] ease-out ${
-              loaded ? 'opacity-100' : 'opacity-0'
-            }`}
-            onLoad={() => setLoaded(true)}
-          />
-        )}
-
-        {/* Gradient layers — Apple TV+: pure black, no color tint */}
-        <div className="absolute inset-x-0 top-0 h-[35%] bg-gradient-to-b from-black via-black/60 to-transparent" />
-        <div className="absolute inset-y-0 right-0 w-[50%] bg-gradient-to-l from-transparent to-black/40" />
-        <div className="absolute inset-x-0 bottom-0 h-[70%] bg-gradient-to-t from-black via-black/80 to-transparent" />
+    <section className="nfx-featured" aria-label="Contenido destacado">
+      <div className="nfx-featured-track">
+        {candidates.slice(0, 5).map((candidate, index) => {
+          const candidateTitle = candidate.title || candidate.name || '';
+          const candidateYear = (candidate.release_date || candidate.first_air_date || '').substring(0, 4);
+          const candidateIsTV = candidate.media_type === 'tv' || !!candidate.name;
+          const isActive = index === currentIndex;
+          return (
+            <button
+              key={`${candidate.id}-${index}`}
+              type="button"
+              className={`nfx-featured-card ${isActive ? 'nfx-featured-card--active' : ''}`}
+              onClick={() => {
+                if (isActive) {
+                  selectItem(candidate);
+                  openDetail();
+                } else {
+                  goTo(index);
+                }
+              }}
+            >
+              <img
+                src={`https://image.tmdb.org/t/p/w780${candidate.backdrop_path}`}
+                alt=""
+                className="nfx-featured-image"
+                loading={index < 2 ? 'eager' : 'lazy'}
+              />
+              <span className="nfx-featured-shade" />
+              <span className="nfx-featured-copy">
+                <span className="nfx-featured-kicker">{candidateIsTV ? 'Serie' : 'Película'} <b>★ {(candidate.vote_average || 0).toFixed(1)}</b></span>
+                <strong>{candidateTitle}</strong>
+                <span className="nfx-featured-meta">{candidateYear} · HD</span>
+              </span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Content — bottom-left with animation */}
-      <div className={`absolute bottom-[12%] left-[4%] right-[4%] md:right-[45%] z-10 transition-all duration-500 ${isTransitioning ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'}`}>
-        {/* Title — Apple TV+ hero: big SF bold, no chip above */}
-        <h1 className="nfx-font-hero text-[36px] sm:text-[48px] md:text-[56px] lg:text-[64px] text-white leading-[1.05] mb-3 md:mb-4 hero-text-shadow animate-nfx-slide-up animate-nfx-slide-up-d2">
-          {title}
-        </h1>
-
-        {/* Metadata row — Apple: year · type · quality */}
-        <div className="flex items-center gap-2 mb-2 md:mb-3 text-[13px] md:text-[14px] animate-nfx-slide-up animate-nfx-slide-up-d3">
-          <span className="text-white/70">{year}</span>
-          <span className="text-white/30">·</span>
-          <span className="text-white/70">{isTV ? 'Serie' : 'Película'}</span>
-          <span className="text-white/30">·</span>
-          <span className="text-white/70 hidden sm:inline">HD</span>
-        </div>
-
-        {/* Description — Apple: 15px white/70 */}
-        <p className="text-white/70 text-[13px] md:text-[15px] leading-[1.6] mb-5 md:mb-6 line-clamp-2 max-w-[480px] animate-nfx-slide-up animate-nfx-slide-up-d3">
-          {item.overview}
-        </p>
-
-        {/* Buttons */}
-        <div className="flex items-center gap-2.5 animate-nfx-slide-up animate-nfx-slide-up-d4">
-          <button
-            onClick={(e) => { e.stopPropagation(); playMovie(item); }}
-            className="nfx-btn-play"
-          >
-            <Play className="w-5 h-5 fill-black text-black" />
-            <span>Reproducir</span>
-          </button>
-
-          <button
-            onClick={(e) => { e.stopPropagation(); selectItem(item); openDetail(); }}
-            className="nfx-btn-info"
-          >
-            <Info className="w-5 h-5" />
-            <span className="sm:inline">Más información</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Dot indicators — friendlier shape */}
-      {candidates.length > 1 && (
-        <div className="absolute bottom-[5%] left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+      <div className="nfx-featured-bottom">
+        <div className="nfx-featured-dots" role="tablist" aria-label="Destacados">
           {candidates.map((_, idx) => (
             <button
               key={idx}
+              type="button"
               onClick={() => goTo(idx)}
-              className={`transition-all duration-300 rounded-full ${
-                idx === currentIndex
-                  ? 'w-6 h-1.5 bg-white'
-                  : 'w-1.5 h-1.5 bg-white/25 hover:bg-white/50'
-              }`}
-              aria-label={`Slide ${idx + 1}`}
+              className={idx === currentIndex ? 'is-active' : ''}
+              aria-label={`Destacado ${idx + 1}`}
             />
           ))}
         </div>
-      )}
-    </div>
+        <div className="nfx-featured-actions">
+          <button type="button" className="nfx-btn-play nfx-featured-play" onClick={() => playMovie(item)}>
+            <Play className="w-4 h-4 fill-black text-black" />
+            <span>Reproducir</span>
+          </button>
+          <button type="button" className="nfx-btn-info nfx-featured-info" onClick={() => { selectItem(item); openDetail(); }}>
+            <Info className="w-4 h-4" />
+            <span>Más información</span>
+          </button>
+        </div>
+      </div>
+    </section>
   );
 }

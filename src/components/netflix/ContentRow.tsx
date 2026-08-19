@@ -9,13 +9,13 @@ interface ContentRowProps {
   items: MediaItem[];
   isTopTen?: boolean;
   rowIndex?: number;
+  onViewAll?: () => void;
 }
 
-/* ────────────────────────────────────────────
-   Content Card — tv.apple.com/co storefront style
-   Portrait 2:3 poster, square corners (radius 0),
-   title below in 13px/400. Measured from /co:
-   img 151x226 @1440, gap 22px, radius 0.
+  /* ────────────────────────────────────────────
+   Content Card — Apple TV-style storefront tile.
+   Posters stay portrait, but the shelf uses larger rounded tiles
+   with enough room for the artwork to carry the hierarchy.
    ──────────────────────────────────────────── */
 function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number; isTopTen?: boolean }) {
   const handleCardClick = useStore((s) => s.handleCardClick);
@@ -28,8 +28,7 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
   const isFav = myList.some(m => m.id === item.id);
   const title = item.title || item.name || '';
 
-  // /co poster tiles are narrow (151px at 1440 viewport)
-  const cardWidth = 'w-[140px] sm:w-[150px] md:w-[162px] lg:w-[172px]';
+  const cardWidth = 'w-[172px] sm:w-[190px] md:w-[214px] lg:w-[224px]';
 
   // Portrait poster; fall back to the backdrop (cropped by object-cover).
   const imgPath = item.poster_path || item.backdrop_path;
@@ -107,9 +106,7 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
         </div>
       </div>
 
-      {/* ── tv.apple.com/co caption BELOW the poster:
-           13px / 400, title only, single line ── */}
-      <p className="text-white/85 text-[13px] font-normal leading-tight mt-2 line-clamp-1">
+      <p className="text-white/[0.88] text-[13px] font-medium leading-tight mt-2 line-clamp-1">
         {title}
       </p>
     </div>
@@ -119,11 +116,11 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
 /* ────────────────────────────────────────────
    Content Row — Horizontal scroll
    ──────────────────────────────────────────── */
-export default function ContentRow({ title, items, isTopTen, rowIndex = 0 }: ContentRowProps) {
+export default function ContentRow({ title, items, isTopTen, rowIndex = 0, onViewAll }: ContentRowProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(true);
-  const [mounted, setMounted] = useState(false);
+  const [mounted] = useState(true);
 
   const checkScroll = () => {
     if (!scrollRef.current) return;
@@ -133,8 +130,6 @@ export default function ContentRow({ title, items, isTopTen, rowIndex = 0 }: Con
   };
 
   useEffect(() => { checkScroll(); }, [items]);
-  useEffect(() => { setMounted(true); }, []);
-
   const scroll = (dir: 'left' | 'right') => {
     if (!scrollRef.current) return;
     const amount = scrollRef.current.clientWidth * 0.85;
@@ -145,15 +140,31 @@ export default function ContentRow({ title, items, isTopTen, rowIndex = 0 }: Con
 
   return (
     <div
-      className="mb-[34px] md:mb-[46px] animate-nfx-row-enter"
+      className="mb-[28px] md:mb-[22px] animate-nfx-row-enter"
       style={mounted ? { animationDelay: `${rowIndex * 60}ms` } : undefined}
       suppressHydrationWarning
     >
-      {/* Row title — tv.apple.com/co shelf header: plain 17px/700, no chevron */}
-      <div className="px-[3%] mb-[10px] md:mb-[12px]">
-        <h2 className="text-white font-bold text-[17px] tracking-[-0.01em] select-none">
-          {title}
-        </h2>
+      <div className="nfx-row-heading px-[3%] mb-[12px]">
+        <button
+          type="button"
+          onClick={onViewAll}
+          className={`inline-flex items-center gap-1 text-left ${onViewAll ? 'cursor-pointer' : 'cursor-default'}`}
+          aria-label={onViewAll ? `Ver todo: ${title}` : title}
+        >
+          <h2 className="text-white/[0.94] font-semibold text-[20px] tracking-[-0.015em] select-none">
+            {title}
+          </h2>
+          <ChevronRight className="w-5 h-5 text-white/70" aria-hidden="true" />
+        </button>
+        {onViewAll && (
+          <button
+            type="button"
+            onClick={onViewAll}
+            className="text-[12px] text-white/55 hover:text-white transition-colors"
+          >
+            Ver todo
+          </button>
+        )}
       </div>
 
       {/* Scrollable container */}

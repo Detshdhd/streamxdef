@@ -243,8 +243,8 @@ export default function DetailModal() {
         className="flex justify-center min-h-full"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Modal content — frosted liquid glass */}
-        <div className="relative w-full max-w-[850px] min-h-screen shadow-[0_0_80px_rgba(0,0,0,0.9)] flex flex-col animate-nfx-modal-in rounded-none md:rounded-t-[18px] md:mt-4 glass-heavy">
+        {/* Modal content — solid #1f1f1f like the Apple TV /co detail page */}
+        <div className="relative w-full max-w-[850px] min-h-screen shadow-[0_0_80px_rgba(0,0,0,0.9)] flex flex-col animate-nfx-modal-in rounded-none md:rounded-t-[18px] md:mt-4 bg-[#1f1f1f]">
 
           {/* Close button — glass */}
           <button
@@ -256,7 +256,7 @@ export default function DetailModal() {
           </button>
 
           {/* Hero backdrop — 16:9 */}
-          <div className="relative w-full aspect-[16/9] bg-[#161618] overflow-hidden shrink-0">
+          <div className="relative w-full aspect-[16/9] bg-[#1f1f1f] overflow-hidden shrink-0">
             {backdrop ? (
               <img
                 src={`https://image.tmdb.org/t/p/w1280${backdrop}`}

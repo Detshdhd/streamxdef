@@ -24,10 +24,10 @@ const nextConfig: NextConfig = {
             value: [
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-              "frame-src 'self' https://vimeus.com https://*.vimeus.com https://vimeos.net https://*.vimeos.net https://*.vimeos.zip https://*.goodstream.one https://*.voe.sx https://*.filemoon.sx https://*.streamtape.com https://*.doodstream.com https://*.mixdrop.ag https://vidrock.ru",
+              "frame-src 'self'",
               "img-src 'self' data: https://image.tmdb.org https://vimeus.com",
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-              "font-src 'self' data: https://fonts.gstatic.com",
+              "style-src 'self' 'unsafe-inline'",
+              "font-src 'self' data:",
               "connect-src 'self' https://api.themoviedb.org https://vimeus.com https://*.vimeus.com https://*.goodstream.one https://*.voe.sx https://*.filemoon.sx https://*.vimeos.net https://*.hakunaymatata.com https://*.1shows.app https://*.tiktokcdn.com https://vidrock.ru https://*.workers.dev https://vidvault.ru https://*.ironwallnet.net https://*.jenks426set.com https://*.lizer123.site https://api.opensubtitles.com https://*.opensubtitles.com",
               "media-src 'self' blob: https://*.goodstream.one https://*.voe.sx https://*.filemoon.sx https://*.vimeos.net https://*.hakunaymatata.com https://*.1shows.app https://*.tiktokcdn.com https://*.workers.dev https://*.ironwallnet.net https://*.jenks426set.com https://*.lizer123.site",
             ].join('; '),

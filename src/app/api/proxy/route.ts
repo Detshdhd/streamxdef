@@ -9,7 +9,7 @@ export const preferredRegion = 'iad1';
  * /api/proxy
  * 
  * Proxy video streams through our server.
- * Handles Vimeus embed sources, Vidrock CDN (Cloudflare Workers), and fallback CDN domains.
+ * Handles provider CDNs, Vidrock workers, and fallback CDN domains.
  * Adds required headers and rewrites m3u8 playlists to go through our proxy.
  * Includes retry logic for rate-limited CDN responses (429).
  */

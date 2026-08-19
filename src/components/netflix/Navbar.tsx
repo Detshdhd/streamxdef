@@ -59,7 +59,7 @@ export default function Navbar() {
 
   useEffect(() => {
     const idx = MOBILE_TABS.findIndex(t => t.key === activeTab);
-    if (idx >= 0) setMobileActiveIndex(idx);
+    if (idx >= 0) setTimeout(() => setMobileActiveIndex(idx), 0);
   }, [activeTab]);
 
   const doSearch = useCallback(
@@ -121,102 +121,63 @@ export default function Navbar() {
 
   return (
     <>
-      {/* ── Desktop + Mobile Top Nav — liquid glass always-on ── */}
+      {/* ── Apple TV-style top navigation ── */}
       <nav className={`nfx-nav ${scrolled ? 'nfx-nav--scrolled' : 'nfx-glass-frost'}`}>
-        <div className="flex items-center justify-between w-full">
-          {/* Left: Logo + Nav Links (Apple TV+: plain links, no pills) */}
-          <div className="flex items-center gap-6 md:gap-8">
-            {/* Logo — clean white TV mark */}
-            <button
-              className="flex items-center shrink-0 gap-1.5"
-              onClick={() => setActiveTab('inicio')}
-              aria-label="Inicio"
-            >
-              <Tv className="w-[22px] h-[22px] text-white" />
-              <span className="hidden sm:inline text-white font-bold text-[15px] tracking-tight">StreamX</span>
-            </button>
-
-            {/* Desktop Nav Links — plain Apple TV+ text links */}
-            <div className="hidden md:flex items-center gap-6">
-              {NAV_LINKS.map(({ key, label }) => {
-                const isActive = activeTab === key;
-                return (
-                  <button
-                    key={key}
-                    onClick={() => setActiveTab(key as ActiveTab)}
-                    className={`text-[14px] transition-colors duration-200 ${
-                      isActive
-                        ? 'text-white font-semibold'
-                        : 'text-white/50 font-medium hover:text-white/90'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
+        <div className="nfx-nav-inner">
+          {/* Desktop links stay visually centered between the two control groups. */}
+          <div className="nfx-nav-links">
+            {NAV_LINKS.map(({ key, label }) => {
+              const isActive = activeTab === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setActiveTab(key as ActiveTab)}
+                  className={`nfx-nav-link ${isActive ? 'nfx-nav-link--active' : ''}`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Right: Search + Bell + Profile */}
-          <div className="flex items-center gap-4 md:gap-5">
-            {/* Search */}
-            <div className="relative flex items-center" ref={searchContainerRef}>
-              {!searchOpen ? (
-                <button
-                  onClick={openSearch}
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all duration-200"
-                  aria-label="Buscar"
-                >
-                  <Search className="w-[18px] h-[18px]" />
+          {/* Search, notifications and profile */}
+          <div className="nfx-nav-actions">
+            <div className={`nfx-search-shell ${searchOpen ? 'nfx-search-shell--open' : ''}`} ref={searchContainerRef}>
+              <Search className="nfx-search-icon" aria-hidden="true" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => { if (!searchOpen) openSearch(); }}
+                placeholder="Buscar"
+                aria-label="Buscar"
+              />
+              {searchOpen && (
+                <button onClick={closeSearch} className="nfx-search-close" aria-label="Cerrar búsqueda">
+                  <X />
                 </button>
-              ) : (
-                <div className="flex items-center gap-2 glass rounded-full px-3 py-1.5">
-                  <Search className="w-[16px] h-[16px] text-white/60 shrink-0" />
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Buscar pelis, series..."
-                    className="bg-transparent border-none text-white text-[14px] outline-none w-[200px] placeholder:text-white/25"
-                  />
-                  <button
-                    onClick={closeSearch}
-                    className="text-white/40 hover:text-white transition-colors duration-200"
-                    aria-label="Cerrar búsqueda"
-                  >
-                    <X className="w-[14px] h-[14px]" />
-                  </button>
-                </div>
               )}
             </div>
 
-            {/* Notification Bell → goes to Downloads (shows active downloads) */}
             <button
               onClick={() => setActiveTab('descargas')}
-              className="hidden md:flex w-9 h-9 rounded-full items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-all duration-200 relative"
+              className="nfx-nav-icon hidden md:flex"
               aria-label="Descargas"
               title="Descargas"
             >
-              <Bell className="w-[18px] h-[18px]" />
-              {activeDownloadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-[7px] h-[7px] bg-white rounded-full ring-2 ring-black" />
-              )}
+              <Bell />
+              {activeDownloadCount > 0 && <span className="nfx-notification-dot" />}
             </button>
 
-            {/* Profile */}
             <div
               className="relative"
               onMouseEnter={() => setProfileHover(true)}
               onMouseLeave={() => setProfileHover(false)}
             >
-              <button className="flex items-center gap-1.5 cursor-pointer" aria-label="Perfil">
-                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center overflow-hidden relative border border-white/15">
-                  <span className="absolute inset-0 text-white text-xs font-bold flex items-center justify-center">S</span>
-                </div>
-                <ChevronDown
-                  className={`w-3 h-3 text-white/40 transition-transform duration-200 ${profileHover ? 'rotate-180' : ''}`}
-                />
+              <button className="nfx-profile" aria-label="Perfil">
+                <span>S</span>
+                <ChevronDown className={`nfx-profile-chevron ${profileHover ? 'rotate-180' : ''}`} />
               </button>
 
               {profileHover && (
@@ -224,15 +185,11 @@ export default function Navbar() {
                   <button
                     onClick={() => setActiveTab('mi-lista')}
                     className="w-full text-left px-4 py-2.5 text-[13px] text-white/60 hover:text-white hover:bg-white/5 transition-colors duration-150"
-                  >
-                    Mi Lista
-                  </button>
+                  >Mi Lista</button>
                   <button
                     onClick={() => setActiveTab('descargas')}
                     className="w-full text-left px-4 py-2.5 text-[13px] text-white/60 hover:text-white hover:bg-white/5 transition-colors duration-150"
-                  >
-                    Descargas
-                  </button>
+                  >Descargas</button>
                   <div className="border-t border-white/5 my-1" />
                   <button
                     onClick={() => {
@@ -244,9 +201,7 @@ export default function Navbar() {
                       }
                     }}
                     className="w-full text-left px-4 py-2.5 text-[13px] text-white/40 hover:text-white hover:bg-white/5 transition-colors duration-150"
-                  >
-                    Limpiar datos
-                  </button>
+                  >Limpiar datos</button>
                 </div>
               )}
             </div>

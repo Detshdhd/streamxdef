@@ -1,22 +1,23 @@
 @import "tailwindcss";
 
 /* ══════════════════════════════════════════════════════════════
-   STREAMX — Liquid Glass Design System
-   Dark crystal surfaces with subtle red accent + soft blur.
+   STREAMX — Apple TV-inspired dark storefront
+   Quiet surfaces, rounded artwork and restrained motion.
    ══════════════════════════════════════════════════════════════ */
 
 /* Tailwind v4 already provides Preflight (CSS reset). */
 
 html {
-  background: #000;
+  background: #1f1f1f;
   color-scheme: dark;
   scroll-behavior: smooth;
 }
 
 body {
-  /* Apple TV+: pure flat black. No tints, no halos. */
-  background: #000;
-  color: #f5f5f7;
+  /* Apple TV+ /co dark theme: page background is #1f1f1f (NOT pure black —
+     measured from tv.apple.com/co in dark mode). Player surfaces stay #000. */
+  background: #1f1f1f;
+  color: rgba(255, 255, 255, 0.92);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 16px;
   line-height: 1.5;
@@ -87,12 +88,13 @@ body {
   --nfx-blue: #448aff;
   --nfx-gold: #f5b342;
 
-  /* Layout — rounded, friendly */
-  --nfx-radius: 14px;
-  --nfx-radius-sm: 10px;
-  --nfx-radius-lg: 18px;
-  --nfx-radius-xl: 24px;
+  /* Layout — Apple TV storefront geometry */
+  --nfx-radius: 12px;
+  --nfx-radius-sm: 8px;
+  --nfx-radius-lg: 16px;
+  --nfx-radius-xl: 22px;
   --nfx-nav-height: 52px;
+  --nfx-shelf-gap: 22px;
 
   /* Gradients */
   --nfx-gradient-brand: linear-gradient(135deg, #ffffff 0%, rgba(255,255,255,0.82) 100%);
@@ -194,11 +196,11 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
 
 /* Always-on frosted navbar — neutral black glass */
 .nfx-glass-frost {
-  background: rgba(0, 0, 0, 0.50);
+  background: #000;
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border-bottom: 1px solid var(--nfx-glass-border-soft);
-  box-shadow: inset 0 1px 0 0 var(--nfx-glass-highlight);
+  border-bottom: none;
+  box-shadow: none;
 }
 
 /* Translucent glass card — frosted, lets background blur through */
@@ -384,26 +386,30 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
 .nfx-card-img {
   width: 100%;
   aspect-ratio: 2 / 3;
-  /* tv.apple.com/co poster tiles: measured border-radius 0px */
-  border-radius: 0;
+  border-radius: var(--nfx-radius);
   overflow: hidden;
   background: var(--nfx-bg-card);
   position: relative;
   transition: transform 400ms var(--nfx-ease), box-shadow 400ms var(--nfx-ease);
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Landscape tile (16:9) — used by Up Next / continue-watching rows */
 .nfx-card-img-landscape {
   aspect-ratio: 16 / 9;
-  border-radius: 0;
-  border: none;
+  border-radius: var(--nfx-radius);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nfx-row-heading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .nfx-card-img:hover {
     box-shadow: 0 18px 56px rgba(0, 0, 0, 0.6);
-    transform: scale(1.04);
+    transform: scale(1.035);
   }
   .nfx-card-img-landscape:hover {
     /* Apple TV+: clean lift, no glow */
@@ -472,40 +478,63 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
   height: var(--nfx-nav-height);
   display: flex;
   align-items: center;
-  padding: 0 4%;
-  transition: all 400ms var(--nfx-ease);
+  padding: 0 3%;
+  transition: all 240ms var(--nfx-ease);
+}
+
+.nfx-nav-inner {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 24px;
+}
+
+.nfx-nav-links { grid-column: 2; display: flex; align-items: center; justify-content: center; gap: 28px; }
+.nfx-nav-actions { grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 12px; }
+.nfx-nav-link { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.58); transition: color 180ms ease; }
+.nfx-nav-link:hover, .nfx-nav-link--active { color: rgba(255,255,255,0.96); }
+.nfx-search-shell {
+  width: 126px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 7px;
+  color: rgba(255,255,255,0.72);
+  transition: width 220ms ease, border-color 180ms ease, background 180ms ease;
+}
+.nfx-search-shell--open { width: 208px; background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.5); }
+.nfx-search-shell input { width: 100%; min-width: 0; background: transparent; border: 0; outline: 0; color: #fff; font-size: 13px; }
+.nfx-search-shell input::placeholder { color: rgba(255,255,255,0.5); }
+.nfx-search-icon { width: 16px; height: 16px; flex: 0 0 auto; }
+.nfx-search-close { display: inline-flex; color: rgba(255,255,255,0.6); }
+.nfx-search-close svg { width: 14px; height: 14px; }
+.nfx-nav-icon { position: relative; align-items: center; justify-content: center; width: 30px; height: 30px; color: rgba(255,255,255,0.68); }
+.nfx-nav-icon svg { width: 17px; height: 17px; }
+.nfx-notification-dot { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: #ff1835; }
+.nfx-profile { display: inline-flex; align-items: center; gap: 4px; color: rgba(255,255,255,0.9); }
+.nfx-profile > span { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(145deg, #e35c61, #852739); font-size: 11px; font-weight: 700; }
+.nfx-profile-chevron { width: 12px; height: 12px; color: rgba(255,255,255,0.56); transition: transform 180ms ease; }
+
+@media (max-width: 900px) {
+  .nfx-nav-inner { grid-template-columns: 1fr auto; }
+  .nfx-nav-links { display: none; }
+  .nfx-nav-actions { grid-column: 2; }
+  .nfx-nav-actions { gap: 8px; }
+  .nfx-search-shell { width: 34px; border-color: transparent; padding: 0; justify-content: center; }
+  .nfx-search-shell input { display: none; }
+  .nfx-search-shell--open { width: min(52vw, 208px); padding: 0 9px; justify-content: flex-start; border-color: rgba(255,255,255,0.5); }
+  .nfx-search-shell--open input { display: block; }
 }
 .nfx-nav--scrolled {
-  background: rgba(0, 0, 0, 0.85);
+  background: #000;
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: none;
 }
-
-.nfx-nav-link {
-  position: relative;
-  font-size: 14px;
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.68);
-  cursor: pointer;
-  transition: color var(--nfx-duration) var(--nfx-ease);
-  padding: 6px 0;
-  letter-spacing: 0.1px;
-}
-.nfx-nav-link:hover { color: #fff; }
-.nfx-nav-link--active { color: #fff; font-weight: 600; }
-
-.nfx-search-input {
-  background: transparent;
-  border: none;
-  color: #fff;
-  font-size: 14px;
-  outline: none;
-  width: 0;
-  padding: 0;
-  transition: width 300ms var(--nfx-ease), padding 300ms var(--nfx-ease);
-}
-.nfx-search-input--open { width: 250px; padding-left: 8px; }
 
 .nfx-search-dropdown {
   background: var(--nfx-glass-dark-heavy);
@@ -523,15 +552,124 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
    HERO BANNER
    ══════════════════════════════════════════════════════════════ */
 
+.nfx-featured {
+  position: relative;
+  padding: 74px 3% 22px;
+  background: #1f1f1f;
+  overflow: hidden;
+}
+
+.nfx-featured-track {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.nfx-featured-card {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #161618;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  text-align: left;
+  cursor: pointer;
+  isolation: isolate;
+  transition: transform 240ms var(--nfx-ease), border-color 240ms var(--nfx-ease), box-shadow 240ms var(--nfx-ease);
+}
+
+.nfx-featured-card:hover,
+.nfx-featured-card--active {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+}
+
+.nfx-featured-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 700ms var(--nfx-ease), opacity 300ms ease;
+}
+
+.nfx-featured-card:hover .nfx-featured-image { transform: scale(1.04); }
+.nfx-featured-shade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.04) 22%, rgba(0, 0, 0, 0.88) 100%);
+}
+
+.nfx-featured-copy {
+  position: absolute;
+  z-index: 2;
+  inset: auto 14px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #fff;
+}
+
+.nfx-featured-kicker,
+.nfx-featured-meta {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  line-height: 1.2;
+}
+.nfx-featured-kicker b { color: #75e6ad; font-weight: 600; margin-left: 4px; }
+.nfx-featured-copy strong { font-size: clamp(14px, 1.15vw, 20px); line-height: 1.08; font-weight: 700; }
+
+.nfx-featured-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  position: relative;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.nfx-featured-dots { display: flex; align-items: center; gap: 7px; }
+.nfx-featured-dots button {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+  transition: all 200ms ease;
+}
+.nfx-featured-dots button.is-active { width: 22px; background: #fff; }
+.nfx-featured-actions { position: absolute; right: 0; display: flex; gap: 8px; }
+.nfx-featured-play,
+.nfx-featured-info { height: 38px; padding: 0 16px; font-size: 13px; }
+
+@media (max-width: 900px) {
+  .nfx-featured-track { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .nfx-featured-card:nth-child(n + 4) { display: none; }
+}
+
+@media (max-width: 640px) {
+  .nfx-featured { padding: 64px 16px 14px; }
+  .nfx-featured-track { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; }
+  .nfx-featured-track::-webkit-scrollbar { display: none; }
+  .nfx-featured-card { flex: 0 0 84vw; }
+  .nfx-featured-card:nth-child(n + 4) { display: block; }
+  .nfx-featured-bottom { min-height: 42px; }
+  .nfx-featured-actions { display: none; }
+}
+
 .nfx-hero {
   position: relative;
   width: 100%;
-  height: 78vh;
+  height: 84vh;
   max-height: 820px;
   min-height: 420px;
   overflow: hidden;
-  /* Apple TV+: flat black base while the backdrop loads */
-  background: #000;
+  background: #1f1f1f;
 }
 
 /* ══════════════════════════════════════════════════════════════
