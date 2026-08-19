@@ -316,6 +316,13 @@ export async function GET(request: NextRequest) {
 
     // For m3u8 playlists: rewrite segment URLs to go through our proxy.
     // The proxy adds required Referer/Origin headers that browsers can't set.
+    // Rewriting is PER-LINE with a single decision per line: the previous
+    // chained-regex version re-processed lines already rewritten by an
+    // earlier rule (rule "absolute" then rule "/..." double-wrapped them),
+    // which broke any playlist with ABSOLUTE URLs in it — e.g. vimeos
+    // master.m3u8 (variants are full https URLs) ended up as
+    // /api/proxy?url=<cdn>/api/proxy?url=<real> → 404. Vidrock never hit
+    // this because its playlists use relative paths.
     if (isM3u8) {
       const text = await response.text();
       const parsedUrl = new URL(url);
@@ -323,20 +330,25 @@ export async function GET(request: NextRequest) {
       const baseUrl = url.substring(0, url.lastIndexOf('/') + 1);
       const proxyBase = '/api/proxy?url=';
 
+      const absolutize = (uri: string): string =>
+        uri.startsWith('http') ? uri
+        : uri.startsWith('/') ? origin + uri
+        : baseUrl + uri;
+
       const rewritten = text
-        // 1) Rewrite URI="..." inside #EXT tags (key maps, etc.)
-        .replace(/URI="([^"]+)"/g, (_m, uri: string) => {
-          const full = uri.startsWith('http') ? uri
-            : uri.startsWith('/') ? origin + uri
-            : baseUrl + uri;
-          return `URI="${proxyBase}${encodeURIComponent(full)}"`;
+        .split('\n')
+        .map((line) => {
+          const trimmed = line.trim();
+          // Comment/empty lines: only URI="..." attributes (key maps, audio
+          // rendition URIs, i-frame playlists) need rewriting.
+          if (!trimmed || trimmed.startsWith('#')) {
+            return line.replace(/URI="([^"]+)"/g, (_m, uri: string) =>
+              `URI="${proxyBase}${encodeURIComponent(absolutize(uri))}"`);
+          }
+          // Segment/variant lines: one wrap, by URL shape.
+          return `${proxyBase}${encodeURIComponent(absolutize(trimmed))}`;
         })
-        // 2) Rewrite non-comment lines (segment URLs) — absolute
-        .replace(/^(https?:\/\/\S+)$/gm, (m) => `${proxyBase}${encodeURIComponent(m)}`)
-        // 3) Relative starting with /
-        .replace(/^(\/\S+)$/gm, (m) => `${proxyBase}${encodeURIComponent(origin + m)}`)
-        // 4) Relative without / (prepend baseUrl)
-        .replace(/^([^#\s\/][^\s]*)$/gm, (m) => `${proxyBase}${encodeURIComponent(baseUrl + m)}`);
+        .join('\n');
 
       return new NextResponse(rewritten, {
         headers: {
