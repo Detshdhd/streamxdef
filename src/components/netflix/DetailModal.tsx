@@ -100,75 +100,11 @@ export default function DetailModal() {
       .finally(() => { loadingRef.current = false; });
   }, [showDetail, selectedItem?.id, isPlaying, setDetail, loadSeason, setEpisodes, selectedItem]);
 
-  // Prefetch stream sources when the detail modal opens so Play starts
-  // INSTANTLY. The result is stored in sessionStorage under the exact key
-  // the player reads (`src:{id}:{type}:{s}:{e}`) — by the time the user
-  // presses Play (usually >1.5s of reading), the sources are already cached
-  // locally and the player skips the network fetch entirely. Re-runs when
-  // the user changes season/episode (new cache key).
+  // Source resolution belongs to the player. Avoid scraping providers and
+  // warming playlists while the user is only reading the detail screen.
   useEffect(() => {
-    if (!showDetail || !selectedItem || isPlaying) return;
-    const mt = selectedItem.media_type === 'tv' || selectedItem.name ? 'tv' : 'movie';
-    const params = new URLSearchParams({ id: String(selectedItem.id), type: mt });
-    if (mt === 'tv') {
-      params.set('s', String(selectedSeason || 1));
-      params.set('e', String(selectedEpisode || 1));
-    }
-    const key = params.toString();
-    if (prefetchedSourceKeyRef.current === key) return;
-    prefetchedSourceKeyRef.current = key;
-
-    // Same key format the VideoPlayer uses for its source cache
-    const cacheKey = `src:${selectedItem.id}:${mt}:${selectedSeason || ''}:${selectedEpisode || ''}`;
-    // If the player already cached sources for this title, don't overwrite
-    try { if (sessionStorage.getItem(cacheKey)) return; } catch { /* ignore */ }
-
-    fetch(`/api/source?${key}`)
-      .then(r => r.json())
-      .then(data => {
-        const sources = data?.sources || [];
-        if (sources.length > 0) {
-          try {
-            sessionStorage.setItem(cacheKey, JSON.stringify({ sources, ts: Date.now() }));
-          } catch { /* quota — ignore */ }
-
-          // ── WARM THE VIDEO PIPELINE ──
-          // Fetch the m3u8 + variant playlists + first segment of each
-          // variant through the proxy NOW. Two wins when the user presses
-          // Play: (1) the proxy function is already hot (no cold start),
-          // (2) segments carry Cache-Control max-age=86400, so the browser
-          // HTTP cache serves the first segments to hls.js instantly.
-          // vimeos.net (Latino) streams DIRECTLY from the browser — its CDN
-          // allows CORS and caches 10 days, so direct warming works there.
-          const first = sources.find(s => s.type === 'hls');
-          if (first) {
-            const warmUrl = first.url.includes('vimeos.')
-              ? first.url
-              : `/api/proxy?url=${encodeURIComponent(first.url)}`;
-            fetch(warmUrl)
-              .then(r => r.text())
-              .then(m3u8 => {
-                const variantUrls = m3u8.split('\n')
-                  .map(l => l.trim())
-                  .filter(l => l.startsWith('/api/proxy?url=') || l.startsWith('http'));
-                variantUrls.slice(0, 4).forEach(v =>
-                  fetch(v)
-                    .then(r => r.text())
-                    .then(sub => {
-                      const segs = sub.split('\n')
-                        .map(l => l.trim())
-                        .filter(l => l.startsWith('/api/proxy?url=') || l.startsWith('http'));
-                      segs.slice(0, 3).forEach(s => fetch(s).catch(() => {}));
-                    })
-                    .catch(() => {})
-                );
-              })
-              .catch(() => {});
-          }
-        }
-      })
-      .catch(() => {});
-  }, [showDetail, selectedItem, isPlaying, selectedSeason, selectedEpisode]);
+    if (!showDetail) prefetchedSourceKeyRef.current = null;
+  }, [showDetail]);
 
   useEffect(() => {
     if (showDetail && !isPlaying) {

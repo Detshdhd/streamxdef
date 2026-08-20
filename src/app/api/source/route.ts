@@ -30,7 +30,23 @@ interface ResolvedSource {
   // Direct stream URL played by the native hls.js player.
   type: 'hls' | 'mp4';
   quality?: string;
-  language: string | null;
+  language: 'English' | 'Español Latino' | null;
+}
+
+/** Keep the source menu deliberately small and predictable. */
+function normalizeSourceLanguage(raw: string | null | undefined, fallback?: 'English' | 'Español Latino'): 'English' | 'Español Latino' | null {
+  const value = (raw || '').trim().toLowerCase()
+    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
+  if (!value) return fallback || null;
+  if (/sub(title)?|caption|cc\\b/.test(value)) return null;
+  if (/ingles|english|\\beng?\\b|\\ben-us\\b|\\ben-gb\\b/.test(value)) return 'English';
+  if (/latino|latam|latin america|es-419|spanish latino|espanol latino/.test(value)) return 'Español Latino';
+  return null;
+}
+
+function qualityScore(value?: string): number {
+  const match = value?.match(/(?:2160|1440|1080|720|576|480|360)p?/i);
+  return match ? parseInt(match[0], 10) : 0;
 }
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
@@ -151,7 +167,8 @@ async function fetchVidrockSources(tmdbId: number, type: string, season?: string
                           serverName === 'Vega' ? 'Vidrock Vega' :
                           `Vidrock ${serverName}`;
 
-      const lang = serverData.language || 'English';
+      const lang = normalizeSourceLanguage(serverData.language, 'English');
+      if (!lang) continue;
       const streamType = serverData.type === 'mp4' ? 'mp4' : 'hls';
 
       // Deduplicate
@@ -203,6 +220,11 @@ interface VimeusEmbed {
   size: string | null;
   subtitle: number;
   url: string;
+}
+
+function getVimeusLanguage(embed: VimeusEmbed): 'English' | 'Español Latino' | null {
+  const fallback = embed.url.toLowerCase().includes('vimeos.') ? 'Español Latino' : undefined;
+  return normalizeSourceLanguage(embed.lang, fallback);
 }
 
 // 'vimeos' REMOVED from browser-only: it is now Vimeus' primary (and often
@@ -508,9 +530,8 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
             console.log(`[Vimeus] Found data in error response (${response.status})`);
             // Continue processing below...
             const embeds: VimeusEmbed[] = vimeusData.embeds || [];
-            const allEmbeds = embeds;
-            const sortedEmbeds = [...allEmbeds]
-              .filter(e => !isDeadProvider(e.url) && !isBrowserOnlyProvider(e.url))
+            const sortedEmbeds = embeds
+              .filter(e => getVimeusLanguage(e) && !isDeadProvider(e.url) && !isBrowserOnlyProvider(e.url))
               .sort((a, b) => {
                 const getPriority = (url: string): number => {
                   if (url.includes('goodstream')) return 0;
@@ -522,7 +543,8 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
             for (let idx = 0; idx < sortedEmbeds.length; idx++) {
               const embed = sortedEmbeds[idx];
               const displayName = getServerDisplayName(embed, idx);
-              const lang = embed.lang || 'Latino';
+              const lang = getVimeusLanguage(embed);
+              if (!lang) continue;
               const extracted = await extractStreamFromEmbed(embed.url);
               if (extracted.streamUrl && extracted.streamType) {
                 if (isTestVideoUrl(extracted.streamUrl)) continue;
@@ -552,16 +574,12 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
 
     console.log(`[Vimeus] Found ${embeds.length} embeds`);
 
-    // Take Spanish/Latino embeds
-    const spanishEmbeds = embeds.filter(e => {
-      const lang = (e.lang || '').toLowerCase();
-      return /latino|español|es\b|spanish|castellano|sub/i.test(lang) || !lang;
-    });
+    // Keep only streams with an explicit allowed language. Unknown and
+    // subtitle-only embeds are discarded before any extraction work.
+    const allowedEmbeds = embeds.filter((embed) => getVimeusLanguage(embed));
 
-    const allEmbeds = spanishEmbeds.length > 0 ? spanishEmbeds : embeds;
-
-    // Filter and sort: goodstream first, skip dead & browser-only providers
-    const sortedEmbeds = [...allEmbeds]
+    // Filter and sort: reliable providers first, skip dead & browser-only.
+    const sortedEmbeds = [...allowedEmbeds]
       .filter(e => !isDeadProvider(e.url) && !isBrowserOnlyProvider(e.url))
       .sort((a, b) => {
         const getPriority = (url: string): number => {
@@ -575,7 +593,7 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
       });
 
     // Also try browser-only providers but only if no server-side ones work
-    const browserOnlyEmbeds = allEmbeds.filter(e => !isDeadProvider(e.url) && isBrowserOnlyProvider(e.url));
+    const browserOnlyEmbeds = allowedEmbeds.filter(e => !isDeadProvider(e.url) && isBrowserOnlyProvider(e.url));
 
     const allSources: ResolvedSource[] = [];
 
@@ -591,7 +609,7 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
           url: directUrl,
           type: 'hls',
           quality: embed.quality || undefined,
-          language: embed.lang || 'Latino',
+          language: getVimeusLanguage(embed),
         });
       } else {
         console.log(`[Vimeus] ⚠️ direct extraction failed for ${embed.url}`);
@@ -603,7 +621,7 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
     // Run all extractions in PARALLEL — sequential extraction was the dominant cost
     // of a cold /api/source request (up to 6 embeds × ~1.5s = ~9s). Promise.all keeps
     // the results in input order so display names/indices stay stable.
-    const MAX_EMBEDS = 3;
+    const MAX_EMBEDS = 6;
     const embedsToTry = extractableEmbeds.slice(0, MAX_EMBEDS);
 
     const extractedResults = await Promise.all(
@@ -616,7 +634,8 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
 
     for (const { embed, idx, extracted } of extractedResults) {
       const displayName = getServerDisplayName(embed, idx);
-      const lang = embed.lang || 'Latino';
+      const lang = getVimeusLanguage(embed);
+      if (!lang) continue;
 
       if (extracted.streamUrl && extracted.streamType) {
         if (isTestVideoUrl(extracted.streamUrl)) continue;
@@ -638,7 +657,8 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
     if (allSources.length === 0 && browserOnlyEmbeds.length > 0) {
       for (const embed of browserOnlyEmbeds.slice(0, 2)) {
         const displayName = getServerDisplayName(embed, 0);
-        const lang = embed.lang || 'Latino';
+        const lang = getVimeusLanguage(embed);
+        if (!lang) continue;
 
         const extracted = await extractStreamFromEmbed(embed.url);
         if (extracted.streamUrl && extracted.streamType) {
@@ -707,6 +727,10 @@ function getSourceRank(url: string): number {
   return 2;
 }
 
+function isAllowedLanguage(language: ResolvedSource['language']): boolean {
+  return language === 'English' || language === 'Español Latino';
+}
+
 /**
  * Merge Vimeus (Spanish/Latino) + Vidrock (English) into a single ranked
  * list. Order: healthy CDNs first (working 1080p English), then goodstream,
@@ -716,11 +740,15 @@ function getSourceRank(url: string): number {
 function combineAndSort(vimeusSources: ResolvedSource[], vidrockSources: ResolvedSource[]): ResolvedSource[] {
   const allSources: ResolvedSource[] = [];
 
+  // Enforce the same language policy at the merge boundary as a final guard.
+  vimeusSources = vimeusSources.filter((source) => isAllowedLanguage(source.language));
+  vidrockSources = vidrockSources.filter((source) => isAllowedLanguage(source.language));
+
   // Vimeus (Spanish/Latino) first
   for (const src of vimeusSources) {
     allSources.push({
       ...src,
-      language: src.language || 'Latino',
+      language: src.language,
     });
   }
 
@@ -740,20 +768,10 @@ function combineAndSort(vimeusSources: ResolvedSource[], vidrockSources: Resolve
     const rankDiff = getSourceRank(a.url) - getSourceRank(b.url);
     if (rankDiff !== 0) return rankDiff;
 
-    // Within the same tier, prefer English (1080p English > Latino 720p)
-    const aLang = (a.language || '').toLowerCase();
-    const bLang = (b.language || '').toLowerCase();
-    const aEng = /ingl|engl|\ben\b|english/.test(aLang);
-    const bEng = /ingl|engl|\ben\b|english/.test(bLang);
-    if (aEng && !bEng) return -1;
-    if (!aEng && bEng) return 1;
-
-    const aSpa = /latino|español|\bes\b|spanish|castellano|sub/.test(aLang);
-    const bSpa = /latino|español|\bes\b|spanish|castellano|sub/.test(bLang);
-    if (aSpa && !bSpa) return -1;
-    if (!aSpa && bSpa) return 1;
-
-    return 0;
+    // Prefer English within a healthy tier, then the highest advertised
+    // quality. Spanish Latino remains available as a separate fallback.
+    if (a.language !== b.language) return a.language === 'English' ? -1 : 1;
+    return qualityScore(b.quality) - qualityScore(a.quality);
   });
 
   return allSources;
@@ -801,29 +819,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ sources: cached.sources });
   }
 
-  // WAIT-FOR-BOTH RULE — fire Vidrock + Vimeus in parallel and wait for BOTH
-  // to finish (up to a 5s ceiling). On serverless (Vercel) there's no
+  // Resolve both providers concurrently, but cap each provider independently
+  // so one slow mirror cannot hold back already valid sources.
   // persistent memory between requests, so we can't rely on a background
   // cache upgrade to deliver Spanish sources on a later call. Typical totals
   // are fast (Vidrock ~0.7s, Vimeus data page ~0.4s — vimeos needs no
   // server-side fetch anymore); the ceiling only matters when a provider
   // stalls, where waiting beats returning nothing.
-  const HARD_CEILING = 5000;
+  const PROVIDER_TIMEOUT = 4200;
   const empty: ResolvedSource[] = [];
+  const withTimeout = (promise: Promise<ResolvedSource[]>): Promise<ResolvedSource[]> =>
+    Promise.race([
+      promise.catch(() => empty),
+      new Promise<ResolvedSource[]>((resolve) => setTimeout(() => resolve(empty), PROVIDER_TIMEOUT)),
+    ]);
 
-  const vidrockP = fetchVidrockSources(parseInt(tmdbId, 10), type, season || undefined, episode || undefined)
-    .catch(() => empty);
-  const vimeusP = fetchVimeusSources(parseInt(tmdbId, 10), type, season || undefined, episode || undefined)
-    .catch(() => empty);
-
-  // Wait for both with a hard ceiling so a stalled provider can't hang the
-  // request indefinitely.
-  const timeoutP = new Promise<ResolvedSource[]>((resolve) =>
-    setTimeout(() => resolve(empty), HARD_CEILING),
-  );
   const [vidrockSources, vimeusSources] = await Promise.all([
-    Promise.race([vidrockP, timeoutP]),
-    Promise.race([vimeusP, timeoutP.then(() => empty)]),
+    withTimeout(fetchVidrockSources(parseInt(tmdbId, 10), type, season || undefined, episode || undefined)),
+    withTimeout(fetchVimeusSources(parseInt(tmdbId, 10), type, season || undefined, episode || undefined)),
   ]);
 
   console.log(`[Source] Vimeus: ${vimeusSources.length}, Vidrock: ${vidrockSources.length}`);

@@ -56,7 +56,12 @@ async function checkVimeus(tmdbId: number, type: string, season?: string, episod
     try {
       const vimeusData = JSON.parse(dataMatch[1]);
       const sources = vimeusData.embeds || [];
-      return sources.length > 0 && sources.some((e: { url?: string }) => e.url);
+      return sources.some((e: { url?: string; lang?: string | null; subtitle?: number }) => {
+        if (!e.url || e.subtitle) return false;
+        const value = (e.lang || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
+        return /latino|latam|latin america|es-419|spanish latino|espanol latino|ingles|english|\\beng?\\b/.test(value)
+          || /vimeos\./i.test(e.url);
+      });
     } catch {
       return false;
     }

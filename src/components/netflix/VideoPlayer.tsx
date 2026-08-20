@@ -92,33 +92,24 @@ function isIOS(): boolean {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
+function getLangKey(lang: string | null): 'en' | 'es-latino' | null {
+  const value = (lang || '').toLowerCase().trim()
+    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
+  if (/sub(title)?|caption|cc\\b|castellano|espanol(?! latino)/.test(value)) return null;
+  if (/ingles|english|\\beng?\\b|\\ben-us\\b|\\ben-gb\\b/.test(value)) return 'en';
+  if (/latino|latam|latin america|es-419|spanish latino|espanol latino/.test(value)) return 'es-latino';
+  return null;
+}
+
 function getLangDisplayName(lang: string | null): string {
-  if (!lang) return 'Desconocido';
-  const l = lang.toLowerCase().trim();
-  if (/ingl|engl|en\b|english/.test(l)) return 'Ingles';
-  if (/latino/.test(l)) return 'Espanol Latino';
-  if (/sub/.test(l) && /esp/.test(l)) return 'Sub Espanol';
-  if (/castellano/.test(l)) return 'Espanol Castellano';
-  if (/espanol|español|^es$|spanish/.test(l)) return 'Espanol';
-  return lang;
+  return getLangKey(lang) === 'en' ? 'English' : 'Español Latino';
 }
 
-function getLangKey(lang: string | null): string {
-  if (!lang) return 'unknown';
-  const l = lang.toLowerCase().trim();
-  if (/ingl|engl|en\b|english/.test(l)) return 'en';
-  if (/latino/.test(l)) return 'es-latino';
-  if (/sub/.test(l) && /esp/.test(l)) return 'es-sub';
-  if (/castellano/.test(l)) return 'es-castellano';
-  if (/espanol|español|^es$|spanish/.test(l)) return 'es';
-  return l;
-}
-
-function getAvailableLanguages(sources: SourceInfo[]): { key: string; label: string; sourceIndex: number }[] {
-  const seen = new Map<string, { key: string; label: string; sourceIndex: number }>();
+function getAvailableLanguages(sources: SourceInfo[]): { key: 'en' | 'es-latino'; label: string; sourceIndex: number }[] {
+  const seen = new Map<string, { key: 'en' | 'es-latino'; label: string; sourceIndex: number }>();
   sources.forEach((src, idx) => {
     const key = getLangKey(src.language);
-    if (!seen.has(key)) {
+    if (key && !seen.has(key)) {
       seen.set(key, { key, label: getLangDisplayName(src.language), sourceIndex: idx });
     }
   });
@@ -2441,7 +2432,9 @@ export default function VideoPlayer() {
     const cacheKey = `src:${playerTmdbId}:${playerMediaType}:${playerSeason || ''}:${playerEpisode || ''}`;
     const cached = getCachedSources(cacheKey);
     if (cached && cached.length > 0) {
-      setSources(cached);
+      const allowedCached = cached.filter((source) => getLangKey(source.language));
+      if (allowedCached.length === 0) return;
+      setSources(allowedCached);
       setSourcesForMovie(currentMovieKey);
       setSourceLoading(false);
       return;
@@ -2455,9 +2448,10 @@ export default function VideoPlayer() {
         .then(r => r.json())
         .then(data => {
           if (cancelled) return;
-          if (data.sources?.length > 0) {
-            setCachedSources(cacheKey, data.sources);
-            setSources(data.sources);
+          const allowedSources = (data.sources || []).filter((source: SourceInfo) => getLangKey(source.language));
+          if (allowedSources.length > 0) {
+            setCachedSources(cacheKey, allowedSources);
+            setSources(allowedSources);
             setSourcesForMovie(currentMovieKey);
             setSourceLoading(false);
           } else if (attempt === 0) {

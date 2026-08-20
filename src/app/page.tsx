@@ -741,21 +741,15 @@ export default function Home() {
     hydrateMyList();
   }, [hydrateMyList]);
 
-  // Download the lazily-split modal/player chunks in the background
-  // IMMEDIATELY — pressing Play must never wait for a 567KB chunk download.
+  // Download the detail/player chunks only when the browser is idle. This
+  // keeps the first catalogue render focused on posters and navigation.
   useEffect(() => {
-    const t = setTimeout(() => {
+    const run = () => {
       import('@/components/netflix/DetailModal').catch(() => {});
       import('@/components/netflix/VideoPlayer').catch(() => {});
-    }, 0);
-    return () => clearTimeout(t);
-  }, []);
-
-  // Boot the /api/source serverless function NOW so it's hot when the user
-  // presses Play — kills the cold-start penalty (measured: cold source
-  // resolution took 3.1s, warm ~1s).
-  useEffect(() => {
-    fetch('/api/source?warm=1').catch(() => {});
+    };
+    const idle = window.setTimeout(run, 1200);
+    return () => window.clearTimeout(idle);
   }, []);
 
   const [sections, setSections] = useState<ContentSection[]>([]);
@@ -799,8 +793,7 @@ export default function Home() {
     }, 0);
   }, [activeTab, getActiveSections]);
 
-  // Load sections up to `loadedCount` (lazy). Trending (hero) is always
-  // fetched first, then the first INITIAL_ROWS rows, then more on scroll.
+  // Load the visible catalogue rows first, then more on scroll.
   useEffect(() => {
     let cancelled = false;
     const activeSections = getActiveSections();
@@ -882,7 +875,7 @@ export default function Home() {
       for (const result of results) {
         fetchedTypesRef.current.add(result.type);
 
-        // Trending feeds the hero carousel AND its own row
+        // Trending feeds the static featured poster shelf and its own row
         if (result.type === 'trending') {
           const trending = (result.data.results || [])
             .filter((item: MediaItem) =>
@@ -1110,12 +1103,8 @@ export default function Home() {
     <div className="min-h-screen bg-[#1f1f1f] flex flex-col">
       <Navbar />
 
-      {/* Hero */}
-      {heroItems.length > 0 ? (
-        <HeroBanner items={heroItems} />
-      ) : (
-        <SkeletonHero />
-      )}
+      {/* Static featured poster shelf */}
+      {heroItems.length > 0 ? <HeroBanner items={heroItems} /> : <SkeletonHero />}
 
       {/* Content rows with tab transition */}
       <div

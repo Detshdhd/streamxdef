@@ -30,8 +30,8 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
 
   const cardWidth = 'w-[172px] sm:w-[190px] md:w-[214px] lg:w-[224px]';
 
-  // Portrait poster; fall back to the backdrop (cropped by object-cover).
-  const imgPath = item.poster_path || item.backdrop_path;
+  // Rows intentionally use posters only; backdrops are landscape artwork.
+  const imgPath = item.poster_path;
 
   if (!imgPath || imgError) {
     return (
@@ -60,12 +60,15 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
         {!imgLoaded && <div className="absolute inset-0 skeleton-shimmer" />}
         <img
           src={`https://image.tmdb.org/t/p/w342${imgPath}`}
+          srcSet={`https://image.tmdb.org/t/p/w185${imgPath} 185w, https://image.tmdb.org/t/p/w342${imgPath} 342w`}
+          sizes="(max-width: 640px) 172px, (max-width: 900px) 190px, 224px"
           alt={title}
           className="w-full h-full object-cover transition-opacity duration-300"
           style={{ opacity: imgLoaded ? 1 : 0 }}
           onLoad={() => setImgLoaded(true)}
           onError={() => setImgError(true)}
-          loading="lazy"
+          loading={index < 4 ? 'eager' : 'lazy'}
+          decoding="async"
         />
 
         {/* Top-10 rank on the artwork (Apple: white on dark glass) */}
