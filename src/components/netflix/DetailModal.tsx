@@ -41,28 +41,38 @@ export default function DetailModal() {
   const downloads = useStore(s => s.downloads);
 
   const [showFullOverview, setShowFullOverview] = useState(false);
-  const loadingRef = useRef(false);
   const fetchedIdRef = useRef<number | null>(null);
-  const prefetchedSourceKeyRef = useRef<string | null>(null);
+  const detailRequestRef = useRef<AbortController | null>(null);
+  const seasonRequestRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
 
   const loadSeason = useCallback(async (tvId: number, seasonNum: number) => {
+    seasonRequestRef.current?.abort();
+    const controller = new AbortController();
+    seasonRequestRef.current = controller;
+    const requestId = ++requestIdRef.current;
     setLoadingEpisodes(true);
     setSelectedSeason(seasonNum);
     try {
-      const res = await fetch(`/api/tmdb?type=season-detail&id=${tvId}&season=${seasonNum}`);
+      const res = await fetch(`/api/tmdb?type=season-detail&id=${tvId}&season=${seasonNum}`, { signal: controller.signal });
       const data = await res.json();
-      setEpisodes(data.episodes || []);
-    } catch { setEpisodes([]); }
-    setLoadingEpisodes(false);
+      if (!controller.signal.aborted && requestId === requestIdRef.current) setEpisodes(data.episodes || []);
+    } catch {
+      if (!controller.signal.aborted && requestId === requestIdRef.current) setEpisodes([]);
+    } finally {
+      if (!controller.signal.aborted && requestId === requestIdRef.current) setLoadingEpisodes(false);
+    }
   }, [setLoadingEpisodes, setSelectedSeason, setEpisodes]);
 
   useEffect(() => {
+    detailRequestRef.current?.abort();
     if (!showDetail || !selectedItem || isPlaying) return;
     if (fetchedIdRef.current === selectedItem.id) return;
     const mediaType = selectedItem.media_type === 'tv' || selectedItem.name ? 'tv' : 'movie';
     const currentId = selectedItem.id;
-    if (loadingRef.current) return;
-    loadingRef.current = true;
+    const controller = new AbortController();
+    detailRequestRef.current = controller;
+    const requestId = ++requestIdRef.current;
     fetchedIdRef.current = currentId;
 
     // Details barely change — cache them in localStorage for 24h so opening
@@ -77,16 +87,15 @@ export default function DetailModal() {
           if (mediaType === 'tv' && cached.seasons && cached.seasons.length > 0) {
             loadSeason(currentId, 1);
           }
-          loadingRef.current = false;
           return;
         }
       }
     } catch { /* corrupted entry — fall through to network */ }
 
-    fetch(`/api/tmdb?type=detail-${mediaType}&id=${currentId}`)
+    fetch(`/api/tmdb?type=detail-${mediaType}&id=${currentId}`, { signal: controller.signal })
       .then(res => res.json())
       .then((data: MediaDetail) => {
-        if (selectedItem && selectedItem.id === currentId) {
+        if (!controller.signal.aborted && requestId === requestIdRef.current && selectedItem?.id === currentId && showDetail) {
           setDetail(data);
           try {
             localStorage.setItem(detailCacheKey, JSON.stringify({ data, ts: Date.now() }));
@@ -97,14 +106,10 @@ export default function DetailModal() {
         }
       })
       .catch(() => {})
-      .finally(() => { loadingRef.current = false; });
-  }, [showDetail, selectedItem?.id, isPlaying, setDetail, loadSeason, setEpisodes, selectedItem]);
-
-  // Source resolution belongs to the player. Avoid scraping providers and
-  // warming playlists while the user is only reading the detail screen.
-  useEffect(() => {
-    if (!showDetail) prefetchedSourceKeyRef.current = null;
-  }, [showDetail]);
+      .finally(() => {
+        if (detailRequestRef.current === controller) detailRequestRef.current = null;
+      });
+  }, [showDetail, selectedItem?.id, isPlaying, setDetail, loadSeason, selectedItem]);
 
   useEffect(() => {
     if (showDetail && !isPlaying) {
@@ -119,10 +124,15 @@ export default function DetailModal() {
 
   useEffect(() => {
     if (!showDetail) {
+      detailRequestRef.current?.abort();
+      seasonRequestRef.current?.abort();
       fetchedIdRef.current = null;
-      prefetchedSourceKeyRef.current = null;
     }
   }, [showDetail]);
+
+  useEffect(() => {
+    setShowFullOverview(false);
+  }, [selectedItem?.id]);
 
   // YouTube-style: the moment a movie modal opens, playback is likely next.
   // Make sure the lazily-split player chunk (567KB, hls.js included) is
@@ -195,9 +205,12 @@ export default function DetailModal() {
           <div className="relative w-full aspect-[16/9] bg-[#1f1f1f] overflow-hidden shrink-0">
             {backdrop ? (
               <img
-                src={`https://image.tmdb.org/t/p/w1280${backdrop}`}
+                src={`https://image.tmdb.org/t/p/w780${backdrop}`}
+                srcSet={`https://image.tmdb.org/t/p/w780${backdrop} 780w, https://image.tmdb.org/t/p/w1280${backdrop} 1280w`}
+                sizes="(max-width: 640px) 100vw, min(850px, 100vw)"
                 alt=""
                 className="w-full h-full object-cover"
+                decoding="async"
               />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-[#1d1d20] to-[#101012]" />
@@ -472,9 +485,12 @@ export default function DetailModal() {
                       <div className="nfx-card-img aspect-[2/3]">
                         <img
                           src={`https://image.tmdb.org/t/p/w342${s.poster_path}`}
+                          srcSet={`https://image.tmdb.org/t/p/w185${s.poster_path} 185w, https://image.tmdb.org/t/p/w342${s.poster_path} 342w`}
+                          sizes="(max-width: 640px) 30vw, (max-width: 900px) 20vw, 150px"
                           alt={s.title || s.name || ''}
                           className="w-full h-full object-cover"
                           loading="lazy"
+                          decoding="async"
                         />
                       </div>
                       <p className="text-white/70 text-[12px] mt-2 line-clamp-1 group-hover:text-white transition-colors">

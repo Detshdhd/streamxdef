@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createDecipheriv } from 'crypto';
+import { normalizeSourceLanguage, isAllowedSourceLanguage } from '@/lib/sourceLanguage';
 
 // Allow up to 10s on Vercel so both Vidrock + Vimeus can finish.
 export const maxDuration = 10;
@@ -30,19 +31,11 @@ interface ResolvedSource {
   // Direct stream URL played by the native hls.js player.
   type: 'hls' | 'mp4';
   quality?: string;
-  language: 'English' | 'Español Latino' | null;
+  language: SourceLanguage | null;
 }
 
 /** Keep the source menu deliberately small and predictable. */
-function normalizeSourceLanguage(raw: string | null | undefined, fallback?: 'English' | 'Español Latino'): 'English' | 'Español Latino' | null {
-  const value = (raw || '').trim().toLowerCase()
-    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
-  if (!value) return fallback || null;
-  if (/sub(title)?|caption|cc\\b/.test(value)) return null;
-  if (/ingles|english|\\beng?\\b|\\ben-us\\b|\\ben-gb\\b/.test(value)) return 'English';
-  if (/latino|latam|latin america|es-419|spanish latino|espanol latino/.test(value)) return 'Español Latino';
-  return null;
-}
+type SourceLanguage = 'English' | 'Español Latino';
 
 function qualityScore(value?: string): number {
   const match = value?.match(/(?:2160|1440|1080|720|576|480|360)p?/i);
@@ -51,8 +44,14 @@ function qualityScore(value?: string): number {
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
 
+function requestSignal(parent: AbortSignal | undefined, timeoutMs: number): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return parent ? AbortSignal.any([parent, timeout]) : timeout;
+}
+
 // In-memory source cache — avoids re-scraping Vimeus/Vidrock on every request.
 const sourceCache = new Map<string, { sources: ResolvedSource[]; timestamp: number }>();
+const inFlightSources = new Map<string, Promise<ResolvedSource[]>>();
 const SOURCE_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -109,7 +108,7 @@ interface VidrockServer {
   flag: string | null;
 }
 
-async function fetchVidrockSources(tmdbId: number, type: string, season?: string, episode?: string): Promise<ResolvedSource[]> {
+async function fetchVidrockSources(tmdbId: number, type: string, season?: string, episode?: string, signal?: AbortSignal): Promise<ResolvedSource[]> {
   const allSources: ResolvedSource[] = [];
 
   try {
@@ -133,7 +132,7 @@ async function fetchVidrockSources(tmdbId: number, type: string, season?: string
             'Origin': 'https://vidrock.ru',
           },
           redirect: 'follow',
-          signal: AbortSignal.timeout(attempt === 0 ? 2500 : 4000),
+          signal: requestSignal(signal, attempt === 0 ? 2500 : 4000),
         });
       } catch (e) {
         console.log(`[Vidrock] API attempt ${attempt + 1} failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -167,7 +166,7 @@ async function fetchVidrockSources(tmdbId: number, type: string, season?: string
                           serverName === 'Vega' ? 'Vidrock Vega' :
                           `Vidrock ${serverName}`;
 
-      const lang = normalizeSourceLanguage(serverData.language, 'English');
+      const lang = normalizeSourceLanguage(serverData.language);
       if (!lang) continue;
       const streamType = serverData.type === 'mp4' ? 'mp4' : 'hls';
 
@@ -222,7 +221,8 @@ interface VimeusEmbed {
   url: string;
 }
 
-function getVimeusLanguage(embed: VimeusEmbed): 'English' | 'Español Latino' | null {
+function getVimeusLanguage(embed: VimeusEmbed): SourceLanguage | null {
+  if (embed.subtitle) return null;
   const fallback = embed.url.toLowerCase().includes('vimeos.') ? 'Español Latino' : undefined;
   return normalizeSourceLanguage(embed.lang, fallback);
 }
@@ -249,7 +249,7 @@ function isBrowserOnlyProvider(url: string): boolean {
   return BROWSER_ONLY_PROVIDERS.some(p => url.toLowerCase().includes(p));
 }
 
-async function extractStreamFromEmbed(embedUrl: string, timeoutMs = 2000): Promise<{ streamUrl: string | null; streamType: 'hls' | 'mp4' | null }> {
+async function extractStreamFromEmbed(embedUrl: string, timeoutMs = 2000, signal?: AbortSignal): Promise<{ streamUrl: string | null; streamType: 'hls' | 'mp4' | null }> {
   try {
     const response = await fetch(embedUrl, {
       headers: {
@@ -259,7 +259,7 @@ async function extractStreamFromEmbed(embedUrl: string, timeoutMs = 2000): Promi
         'Referer': VIMEUS_DOMAIN,
       },
       redirect: 'follow',
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: requestSignal(signal, timeoutMs),
     });
 
     if (!response.ok) return { streamUrl: null, streamType: null };
@@ -426,12 +426,12 @@ function unpackVimeosPacker(html: string): string | null {
  * the master.m3u8 URL and probe it. Returns the URL only when the CDN
  * actually serves the playlist (poisoned tokens answer 403 here).
  */
-async function mintVimeosMaster(embedUrl: string): Promise<string | null> {
+async function mintVimeosMaster(embedUrl: string, signal?: AbortSignal): Promise<string | null> {
   try {
     const page = await fetch(embedUrl, {
       headers: VIMEOS_EMBED_HEADERS,
       redirect: 'follow',
-      signal: AbortSignal.timeout(4000),
+      signal: requestSignal(signal, 4000),
     });
     if (!page.ok) return null;
 
@@ -449,7 +449,7 @@ async function mintVimeosMaster(embedUrl: string): Promise<string | null> {
     const probe = await fetch(fileMatch[1], {
       headers: { 'User-Agent': UA, 'Referer': 'https://vimeos.net/' },
       redirect: 'follow',
-      signal: AbortSignal.timeout(2500),
+      signal: requestSignal(signal, 2500),
     });
     // Drain the (tiny) body so the connection is released back to the pool.
     await probe.text().catch(() => {});
@@ -465,9 +465,9 @@ async function mintVimeosMaster(embedUrl: string): Promise<string | null> {
  * measured ~70% per-mint success on healthy mirrors, so latency is
  * typically one mint (~0.6-0.9s) instead of waiting for the slowest.
  */
-async function extractVimeosDirect(embedUrl: string): Promise<string | null> {
-  const attempts = Array.from({ length: 6 }, async () => {
-    const url = await mintVimeosMaster(embedUrl);
+async function extractVimeosDirect(embedUrl: string, signal?: AbortSignal): Promise<string | null> {
+  const attempts = Array.from({ length: 3 }, async () => {
+    const url = await mintVimeosMaster(embedUrl, signal);
     if (!url) throw new Error('mint failed');
     return url;
   });
@@ -495,7 +495,7 @@ function getServerDisplayName(embed: VimeusEmbed, index: number): string {
   return `Servidor ${index + 1}${embed.lang ? ` (${embed.lang})` : ''}`;
 }
 
-async function fetchVimeusSources(tmdbId: number, type: string, season?: string, episode?: string): Promise<ResolvedSource[]> {
+async function fetchVimeusSources(tmdbId: number, type: string, season?: string, episode?: string, signal?: AbortSignal): Promise<ResolvedSource[]> {
   const contentType = type === 'tv' ? 'serie' : 'movie';
   const embedUrl = buildVimeusEmbedUrl(
     contentType,
@@ -513,7 +513,7 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
         'Referer': VIMEUS_DOMAIN,
       },
       redirect: 'follow',
-      signal: AbortSignal.timeout(3000),
+      signal: requestSignal(signal, 3000),
     });
 
     if (!response.ok) {
@@ -545,7 +545,7 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
               const displayName = getServerDisplayName(embed, idx);
               const lang = getVimeusLanguage(embed);
               if (!lang) continue;
-              const extracted = await extractStreamFromEmbed(embed.url);
+              const extracted = await extractStreamFromEmbed(embed.url, 2000, signal);
               if (extracted.streamUrl && extracted.streamType) {
                 if (isTestVideoUrl(extracted.streamUrl)) continue;
                 allSources.push({ name: displayName, url: extracted.streamUrl, type: extracted.streamType, quality: embed.quality || undefined, language: lang });
@@ -597,11 +597,14 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
 
     const allSources: ResolvedSource[] = [];
 
-    // VIMEOS.NET (Vimeus' own provider) — extract the signed master.m3u8
-    // directly. If every parallel mint fails, omit that source until a retry.
-    const vimeosEmbeds = sortedEmbeds.filter(e => e.url.includes('vimeos.'));
-    for (const embed of vimeosEmbeds) {
-      const directUrl = await extractVimeosDirect(embed.url);
+    // VIMEOS.NET (Vimeus' own provider) — extract a signed master.m3u8
+    // directly. Try the best two mirrors in parallel and stop at the first hit.
+    const vimeosEmbeds = sortedEmbeds.filter(e => e.url.includes('vimeos.')).slice(0, 2);
+    const directResults = await Promise.all(vimeosEmbeds.map(async (embed) => ({
+      embed,
+      directUrl: await extractVimeosDirect(embed.url, signal),
+    })));
+    for (const { embed, directUrl } of directResults) {
       if (directUrl) {
         console.log(`[Vimeus] ✅ vimeos DIRECT m3u8: ${directUrl.substring(0, 90)}...`);
         allSources.push({
@@ -628,7 +631,7 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
       embedsToTry.map(async (embed, idx) => ({
         embed,
         idx,
-        extracted: await extractStreamFromEmbed(embed.url, 2000),
+        extracted: await extractStreamFromEmbed(embed.url, 2000, signal),
       }))
     );
 
@@ -660,7 +663,7 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
         const lang = getVimeusLanguage(embed);
         if (!lang) continue;
 
-        const extracted = await extractStreamFromEmbed(embed.url);
+        const extracted = await extractStreamFromEmbed(embed.url, 2000, signal);
         if (extracted.streamUrl && extracted.streamType) {
           if (isTestVideoUrl(extracted.streamUrl)) continue;
           console.log(`[Vimeus] ✅ Extracted ${extracted.streamType} from browser-only ${displayName}: ${extracted.streamUrl.substring(0, 80)}...`);
@@ -727,8 +730,8 @@ function getSourceRank(url: string): number {
   return 2;
 }
 
-function isAllowedLanguage(language: ResolvedSource['language']): boolean {
-  return language === 'English' || language === 'Español Latino';
+function isAllowedLanguage(language: ResolvedSource['language']): language is SourceLanguage {
+  return isAllowedSourceLanguage(language);
 }
 
 /**
@@ -758,7 +761,7 @@ function combineAndSort(vimeusSources: ResolvedSource[], vidrockSources: Resolve
     if (!isDuplicate) {
       allSources.push({
         ...src,
-        language: src.language || 'English',
+        language: src.language,
       });
     }
   }
@@ -806,8 +809,8 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (!tmdbId || !type) {
-    return NextResponse.json({ error: 'id and type required' }, { status: 400 });
+  if (!tmdbId || !type || !/^\d+$/.test(tmdbId) || !['movie', 'tv'].includes(type)) {
+    return NextResponse.json({ error: 'valid id and type required' }, { status: 400 });
   }
 
   // In-memory cache: source resolution is expensive (4-5s of live scraping).
@@ -816,52 +819,45 @@ export async function GET(request: NextRequest) {
   const cached = sourceCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < SOURCE_CACHE_TTL) {
     console.log(`[Source] Cache HIT for ${cacheKey} (${cached.sources.length} sources)`);
-    return NextResponse.json({ sources: cached.sources });
+    return NextResponse.json(
+      { sources: cached.sources },
+      { headers: { 'Cache-Control': 'public, s-maxage=600' } },
+    );
   }
 
-  // Resolve both providers concurrently, but cap each provider independently
-  // so one slow mirror cannot hold back already valid sources.
-  // persistent memory between requests, so we can't rely on a background
-  // cache upgrade to deliver Spanish sources on a later call. Typical totals
-  // are fast (Vidrock ~0.7s, Vimeus data page ~0.4s — vimeos needs no
-  // server-side fetch anymore); the ceiling only matters when a provider
-  // stalls, where waiting beats returning nothing.
-  const PROVIDER_TIMEOUT = 4200;
-  const empty: ResolvedSource[] = [];
-  const withTimeout = (promise: Promise<ResolvedSource[]>): Promise<ResolvedSource[]> =>
-    Promise.race([
-      promise.catch(() => empty),
-      new Promise<ResolvedSource[]>((resolve) => setTimeout(() => resolve(empty), PROVIDER_TIMEOUT)),
-    ]);
+  const cachedOrInflight = inFlightSources.get(cacheKey);
+  const startedAt = Date.now();
+  const resolveSources = cachedOrInflight || (async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4200);
+    try {
+      const [vidrockSources, vimeusSources] = await Promise.all([
+        fetchVidrockSources(parseInt(tmdbId, 10), type, season || undefined, episode || undefined, controller.signal).catch(() => []),
+        fetchVimeusSources(parseInt(tmdbId, 10), type, season || undefined, episode || undefined, controller.signal).catch(() => []),
+      ]);
 
-  const [vidrockSources, vimeusSources] = await Promise.all([
-    withTimeout(fetchVidrockSources(parseInt(tmdbId, 10), type, season || undefined, episode || undefined)),
-    withTimeout(fetchVimeusSources(parseInt(tmdbId, 10), type, season || undefined, episode || undefined)),
-  ]);
+      const allSources = combineAndSort(vimeusSources, vidrockSources);
+      console.log(`[Source] resolved ${cacheKey} in ${Date.now() - startedAt}ms (vimeus=${vimeusSources.length}, vidrock=${vidrockSources.length}, total=${allSources.length})`);
+      if (allSources.length > 0) {
+        sourceCache.set(cacheKey, { sources: allSources, timestamp: Date.now() });
+      }
+      pruneSourceCache();
+      return allSources;
+    } finally {
+      clearTimeout(timeout);
+    }
+  })();
 
-  console.log(`[Source] Vimeus: ${vimeusSources.length}, Vidrock: ${vidrockSources.length}`);
-
-  const allSources = combineAndSort(vimeusSources, vidrockSources);
-
-  if (allSources.some(s => isDeadCdn(s.url))) {
-    console.log(`[Source] Sorted ${allSources.length} sources — dead CDN (1shows.app) pushed to the end`);
+  if (!cachedOrInflight) inFlightSources.set(cacheKey, resolveSources);
+  let allSources: ResolvedSource[];
+  try {
+    allSources = await resolveSources;
+  } finally {
+    if (inFlightSources.get(cacheKey) === resolveSources) inFlightSources.delete(cacheKey);
   }
 
-  // Store in cache for subsequent requests (language switch, replay, etc.)
-  // On serverless (Vercel) this only helps within the same warm instance.
-  if (allSources.length > 0) {
-    sourceCache.set(cacheKey, { sources: allSources, timestamp: Date.now() });
-  }
-  pruneSourceCache();
-
-  // EDGE CACHE: a successful resolution is cached by the Vercel CDN for
-  // 10 min — the player's 700ms retry, replays, and OTHER USERS watching
-  // the same title get it in ~50ms instead of another 3s cold resolution.
-  // Empty responses are NEVER cached (no-store) so a cold-start failure
-  // doesn't stick.
   const headers = allSources.length > 0
     ? { 'Cache-Control': 'public, s-maxage=600' }
     : { 'Cache-Control': 'no-store' };
-
   return NextResponse.json({ sources: allSources }, { headers });
 }

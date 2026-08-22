@@ -7,6 +7,7 @@ import Navbar from '@/components/netflix/Navbar';
 import HeroBanner from '@/components/netflix/HeroBanner';
 import ContentRow from '@/components/netflix/ContentRow';
 import { useStore, type MediaItem, type ContinueWatchingItem, type DownloadItem } from '@/store/useStore';
+import { hasArtwork } from '@/lib/mediaArtwork';
 
 // Code-split the modal and player (hls.js is ~400KB) out of the initial
 // bundle — the page opens faster because it no longer ships the player
@@ -152,9 +153,10 @@ function ViewAllGrid({ section, onClose }: {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const controller = new AbortController();
     let cancelled = false;
     Promise.all([1, 2, 3].map((page) =>
-      fetch(`/api/tmdb?type=${encodeURIComponent(section.type)}&page=${page}`)
+      fetch(`/api/tmdb?type=${encodeURIComponent(section.type)}&page=${page}`, { signal: controller.signal })
         .then((response) => response.json())
         .catch(() => ({ results: [] }))
     )).then((pages) => {
@@ -164,7 +166,7 @@ function ViewAllGrid({ section, onClose }: {
       for (const page of pages) {
         for (const item of (page.results || []) as MediaItem[]) {
           const mediaType = item.media_type || (item.name && !item.title ? 'tv' : 'movie');
-          if (seen.has(item.id) || !item.poster_path || mediaType !== (section.filter === 'all' ? mediaType : section.filter)) continue;
+          if (seen.has(item.id) || !hasArtwork(item) || mediaType !== (section.filter === 'all' ? mediaType : section.filter)) continue;
           if ((item.vote_average || 0) < MIN_RATING || (item.vote_count || 0) < MIN_VOTE_COUNT || noSourceIds.has(item.id)) continue;
           seen.add(item.id);
           nextItems.push({ ...item, media_type: mediaType });
@@ -173,7 +175,7 @@ function ViewAllGrid({ section, onClose }: {
       setItems(nextItems);
       setLoading(false);
     });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [section.type, section.filter, noSourceIds]);
 
   useEffect(() => {
@@ -207,7 +209,15 @@ function ViewAllGrid({ section, onClose }: {
             {items.map((item) => (
               <button key={`${item.id}-${item.media_type}`} type="button" onClick={() => handleCardClick(item)} className="text-left group">
                 <div className="nfx-card-img">
-                  <img src={`https://image.tmdb.org/t/p/w342${item.poster_path}`} alt={item.title || item.name || ''} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" loading="lazy" />
+                  <img
+                    src={`https://image.tmdb.org/t/p/w342${item.poster_path}`}
+                    srcSet={`https://image.tmdb.org/t/p/w185${item.poster_path} 185w, https://image.tmdb.org/t/p/w342${item.poster_path} 342w, https://image.tmdb.org/t/p/w500${item.poster_path} 500w`}
+                    sizes="(max-width: 640px) 46vw, (max-width: 900px) 22vw, (max-width: 1200px) 18vw, 15vw"
+                    alt={item.title || item.name || ''}
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                    loading="lazy"
+                    decoding="async"
+                  />
                   <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"><Play className="w-8 h-8 fill-white text-white" /></div>
                 </div>
                 <p className="text-white/85 text-[13px] font-medium leading-tight mt-2 line-clamp-1">{item.title || item.name || ''}</p>
@@ -307,9 +317,9 @@ function ContinueWatchingRow({ items }: { items: ContinueWatchingItem[] }) {
           const pct = cw.progress.duration > 0 ? Math.min(100, (cw.progress.watched / cw.progress.duration) * 100) : 0;
           const remaining = cw.progress.duration - cw.progress.watched;
           const img = cw.backdrop_path
-            ? `https://image.tmdb.org/t/p/w300${cw.backdrop_path}`
+            ? `https://image.tmdb.org/t/p/w342${cw.backdrop_path}`
             : cw.poster_path
-              ? `https://image.tmdb.org/t/p/w185${cw.poster_path}`
+              ? `https://image.tmdb.org/t/p/w342${cw.poster_path}`
               : '';
           return (
             <div
@@ -320,7 +330,17 @@ function ContinueWatchingRow({ items }: { items: ContinueWatchingItem[] }) {
               <div className="nfx-card-img nfx-card-img-landscape relative">
                 <div className="absolute inset-0">
                   {img && (
-                    <img src={img} alt={cw.title} className="w-full h-full object-cover" loading="lazy" />
+                    <img
+                      src={img}
+                      srcSet={cw.backdrop_path
+                        ? `https://image.tmdb.org/t/p/w300${cw.backdrop_path} 300w, https://image.tmdb.org/t/p/w342${cw.backdrop_path} 342w, https://image.tmdb.org/t/p/w780${cw.backdrop_path} 780w`
+                        : undefined}
+                      sizes="(max-width: 640px) 230px, (max-width: 900px) 280px, (max-width: 1200px) 310px, 330px"
+                      alt={cw.title}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                    />
                   )}
                 </div>
                 {/* Play on hover (Apple: white disc, black glyph) */}
@@ -397,10 +417,13 @@ function MiListaTab() {
             <div className="nfx-card-img">
               {item.poster_path ? (
                 <img
-                  src={`https://image.tmdb.org/t/p/w185${item.poster_path}`}
+                  src={`https://image.tmdb.org/t/p/w342${item.poster_path}`}
+                  srcSet={`https://image.tmdb.org/t/p/w185${item.poster_path} 185w, https://image.tmdb.org/t/p/w342${item.poster_path} 342w, https://image.tmdb.org/t/p/w500${item.poster_path} 500w`}
+                  sizes="(max-width: 640px) 46vw, (max-width: 900px) 22vw, (max-width: 1200px) 18vw, 15vw"
                   alt={item.title || item.name || ''}
                   className="w-full h-full object-cover"
                   loading="lazy"
+                  decoding="async"
                 />
               ) : (
                 <div className="w-full h-full bg-[#1d1d20] flex items-center justify-center">
@@ -437,10 +460,11 @@ function SearchTab() {
       setTimeout(() => setResults([]), 0);
       return;
     }
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const res = await fetch(`/api/tmdb?type=search&query=${encodeURIComponent(query)}`);
+        const res = await fetch(`/api/tmdb?type=search&query=${encodeURIComponent(query)}`, { signal: controller.signal });
         const data = await res.json();
         
         // Filter: only movies and series with poster and good ratings.
@@ -451,7 +475,7 @@ function SearchTab() {
         const filtered = (data.results || []).filter(
           (item: { media_type: string; poster_path: string | null; vote_average?: number; vote_count?: number; id?: number }) =>
             (item.media_type === 'movie' || item.media_type === 'tv') &&
-            item.poster_path &&
+            hasArtwork(item) &&
             (item.vote_average || 0) >= MIN_RATING &&
             (item.vote_count || 0) >= MIN_VOTE_COUNT &&
             item.id
@@ -574,9 +598,12 @@ function SearchTab() {
                 {item.poster_path ? (
                   <img
                     src={`https://image.tmdb.org/t/p/w342${item.poster_path}`}
+                    srcSet={`https://image.tmdb.org/t/p/w185${item.poster_path} 185w, https://image.tmdb.org/t/p/w342${item.poster_path} 342w`}
+                    sizes="(max-width: 640px) 30vw, (max-width: 900px) 22vw, 12vw"
                     alt=""
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                     loading="lazy"
+                    decoding="async"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center px-2">
@@ -741,22 +768,9 @@ export default function Home() {
     hydrateMyList();
   }, [hydrateMyList]);
 
-  // Download the detail/player chunks only when the browser is idle. This
-  // keeps the first catalogue render focused on posters and navigation.
-  useEffect(() => {
-    const run = () => {
-      import('@/components/netflix/DetailModal').catch(() => {});
-      import('@/components/netflix/VideoPlayer').catch(() => {});
-    };
-    const idle = window.setTimeout(run, 1200);
-    return () => window.clearTimeout(idle);
-  }, []);
-
   const [sections, setSections] = useState<ContentSection[]>([]);
   const [trendingItems, setTrendingItems] = useState<MediaItem[]>([]);
   const [viewAllSection, setViewAllSection] = useState<{ title: string; type: string; filter: 'movie' | 'tv' | 'all' } | null>(null);
-  const [sourceCheckedIds, setSourceCheckedIds] = useState<Set<number>>(new Set());
-  const sourceCheckInProgress = useRef(false);
   // Avoid SSR/CSR hydration mismatch: continue-watching comes from
   // localStorage which is only available on the client.
   const [mounted] = useState(true);
@@ -784,13 +798,10 @@ export default function Home() {
     return HOME_SECTIONS;
   }, [activeTab]);
 
-  // Reset lazy-loading state when the tab changes
+  // Reset lazy-loading state when the tab changes without leaving a stale timer.
   useEffect(() => {
     fetchedTypesRef.current = new Set();
-    setTimeout(() => {
-      setLoadedCount(INITIAL_ROWS);
-      setSourceCheckedIds(new Set());
-    }, 0);
+    queueMicrotask(() => setLoadedCount(INITIAL_ROWS));
   }, [activeTab, getActiveSections]);
 
   // Load the visible catalogue rows first, then more on scroll.
@@ -798,10 +809,11 @@ export default function Home() {
     let cancelled = false;
     const activeSections = getActiveSections();
     const wanted = activeSections.slice(0, loadedCount);
+    const requestController = new AbortController();
 
     // Initialize slots + set visible ones to loading state (but keep the
     // data already loaded for rows that are still in view)
-    setTimeout(() => setSections(prev => activeSections.map((s, idx) => {
+    queueMicrotask(() => setSections(prev => activeSections.map((s, idx) => {
       const existing = prev.find(p => p.type === s.type);
       const loading = idx < loadedCount && !(existing && existing.data.length > 0);
       return {
@@ -809,7 +821,7 @@ export default function Home() {
         data: existing?.data || [],
         loading,
       };
-    })), 0);
+    })));
 
     // ── LOCAL CACHE with stale-while-revalidate ──
     // Sections are cached in localStorage (trending 5 min, lists 1 h).
@@ -843,16 +855,28 @@ export default function Home() {
       const cachedData = readCache(type);
       if (cachedData) {
         // Stale-while-revalidate: if past TTL, refresh quietly in background
-        if (Date.now() - JSON.parse(localStorage.getItem(`tmdb:${type}`)!).ts > cacheTtl(type)) {
+        let cachedTimestamp = 0;
+        try {
+          const raw = localStorage.getItem(`tmdb:${type}`);
+          cachedTimestamp = raw ? Number(JSON.parse(raw).ts) || 0 : 0;
+        } catch { cachedTimestamp = 0; }
+        if (Date.now() - cachedTimestamp > cacheTtl(type)) {
           fetch(`/api/tmdb?type=${type}`)
             .then(r => r.json())
-            .then(fresh => { if (!cancelled) writeCache(type, fresh); })
+            .then(fresh => {
+              if (!cancelled && fresh?.results?.length) {
+                writeCache(type, fresh);
+                setSections(prev => prev.map(section => section.type === type
+                  ? { ...section, data: fresh.results.filter((item: MediaItem) => hasArtwork(item)), loading: false }
+                  : section));
+              }
+            })
             .catch(() => {});
         }
         return { type, data: cachedData };
       }
       // 2. No cache → network (edge-cached on Vercel, so usually fast)
-      const r = await fetch(`/api/tmdb?type=${type}`);
+      const r = await fetch(`/api/tmdb?type=${type}`, { signal: requestController.signal });
       const data = await r.json();
       writeCache(type, data);
       return { type, data };
@@ -874,38 +898,33 @@ export default function Home() {
 
       for (const result of results) {
         fetchedTypesRef.current.add(result.type);
-
-        // Trending feeds the static featured poster shelf and its own row
-        if (result.type === 'trending') {
-          const trending = (result.data.results || [])
-            .filter((item: MediaItem) =>
-              item.poster_path &&
-              (item.vote_average || 0) >= MIN_RATING &&
-              (item.vote_count || 0) >= MIN_VOTE_COUNT &&
-              (item.media_type === 'movie' || item.media_type === 'tv')
-            );
-          setTrendingItems(trending);
-        }
-
-        const items: MediaItem[] = (result.data.results || [])
-          .filter((item: MediaItem) =>
-            item.poster_path &&
-            (item.vote_average || 0) >= MIN_RATING &&
-            (item.vote_count || 0) >= MIN_VOTE_COUNT
-          );
-        const idx = wanted.findIndex(s => s.type === result.type);
-        if (idx >= 0) {
-          setSections(prev => {
-            const next = [...prev];
-            next[idx] = { ...next[idx], data: items, loading: false };
-            return next;
-          });
-        }
       }
+
+      const nextSections = [...activeSections].map((section, idx) => {
+        const result = results.find((entry) => entry.type === section.type);
+        if (!result) return { ...section, data: [], loading: idx < loadedCount };
+        const items: MediaItem[] = (result.data.results || []).filter((item: MediaItem) =>
+          hasArtwork(item) &&
+          (item.vote_average || 0) >= MIN_RATING &&
+          (item.vote_count || 0) >= MIN_VOTE_COUNT
+        );
+        return { ...section, data: items, loading: false };
+      });
+
+      const trendingResult = results.find((result) => result.type === 'trending');
+      if (trendingResult) {
+        setTrendingItems((trendingResult.data.results || []).filter((item: MediaItem) =>
+          hasArtwork(item) &&
+          (item.vote_average || 0) >= MIN_RATING &&
+          (item.vote_count || 0) >= MIN_VOTE_COUNT &&
+          (item.media_type === 'movie' || item.media_type === 'tv')
+        ));
+      }
+      setSections(nextSections);
     }
 
     loadAll();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; requestController.abort(); };
   }, [activeTab, getActiveSections, loadedCount]);
 
   // Load more rows when the user scrolls near the bottom
@@ -922,92 +941,10 @@ export default function Home() {
     return () => obs.disconnect();
   }, [getActiveSections, loadedCount]);
 
-  // Background source check — check Vimeus for items that loaded
-  // This runs AFTER sections are loaded and checks availability in batches
-  useEffect(() => {
-    if (sourceCheckInProgress.current) return;
-    
-    // Collect all loaded item IDs
-    const allItems: { id: number; type: string }[] = [];
-    for (const section of sections) {
-      if (section.loading) continue;
-      for (const item of section.data) {
-        if (!sourceCheckedIds.has(item.id) && !noSourceIds.has(item.id)) {
-          const mt = getMediaType(item);
-          allItems.push({ id: item.id, type: mt });
-        }
-      }
-    }
+  // Source availability is resolved when playback starts, not during catalog paint.
+  // This keeps the first render focused on TMDB data and poster artwork.
 
-    if (allItems.length === 0) return;
-
-    // Deduplicate
-    const seen = new Set<number>();
-    const unique = allItems.filter(item => {
-      if (seen.has(item.id)) return false;
-      seen.add(item.id);
-      return true;
-    });
-
-    if (unique.length === 0) return;
-
-    sourceCheckInProgress.current = true;
-
-    // Check in batches of 20
-    const movieIds = unique.filter(i => i.type === 'movie').map(i => i.id);
-    const tvIds = unique.filter(i => i.type === 'tv').map(i => i.id);
-
-    const unavailableIds = new Set<number>();
-
-    (async () => {
-      // Check movies in batches
-      for (let i = 0; i < movieIds.length; i += 20) {
-        const batch = movieIds.slice(i, i + 20);
-        try {
-          const res = await fetch(`/api/source-check?ids=${batch.join(',')}&type=movie`);
-          const data = await res.json();
-          for (const [id, available] of Object.entries(data.available || {})) {
-            if (!available) {
-              unavailableIds.add(parseInt(id));
-            }
-          }
-        } catch { /* source check failed, don't filter */ }
-      }
-
-      // Check TV in batches
-      for (let i = 0; i < tvIds.length; i += 20) {
-        const batch = tvIds.slice(i, i + 20);
-        try {
-          const res = await fetch(`/api/source-check?ids=${batch.join(',')}&type=tv`);
-          const data = await res.json();
-          for (const [id, available] of Object.entries(data.available || {})) {
-            if (!available) {
-              unavailableIds.add(parseInt(id));
-            }
-          }
-        } catch { /* source check failed, don't filter */ }
-      }
-
-      // Update checked IDs
-      setSourceCheckedIds(prev => {
-        const next = new Set(prev);
-        for (const item of unique) next.add(item.id);
-        return next;
-      });
-
-      // Add unavailable IDs to blacklist
-      if (unavailableIds.size > 0) {
-        const { addToBlacklist } = useStore.getState();
-        for (const id of unavailableIds) {
-          addToBlacklist(id);
-        }
-      }
-
-      sourceCheckInProgress.current = false;
-    })();
-  }, [sections, noSourceIds, sourceCheckedIds, getMediaType]);
-
-  // Filter sections to remove blacklisted items (items with no sources)
+  // Filter sections to remove titles explicitly blacklisted after a failed playback.
   const filteredSections = useMemo(() => {
     return sections.map(section => ({
       ...section,

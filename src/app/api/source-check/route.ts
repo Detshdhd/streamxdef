@@ -17,7 +17,10 @@ const VIMEUS_DOMAIN = 'https://vimeus.com';
 
 // In-memory cache
 const sourceCache = new Map<string, { available: boolean; timestamp: number }>();
+const inFlightChecks = new Map<string, Promise<boolean | null>>();
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+type CheckResult = boolean | null;
 
 function getCacheKey(id: number, type: string): string {
   return `${type}-${id}`;
@@ -26,7 +29,7 @@ function getCacheKey(id: number, type: string): string {
 /**
  * Check Vimeus: fetch the provider page and check for actual sources.
  */
-async function checkVimeus(tmdbId: number, type: string, season?: string, episode?: string): Promise<boolean> {
+async function checkVimeus(tmdbId: number, type: string, season?: string, episode?: string): Promise<CheckResult> {
   const contentType = type === 'tv' ? 'serie' : 'movie';
   
   try {
@@ -47,50 +50,51 @@ async function checkVimeus(tmdbId: number, type: string, season?: string, episod
       signal: AbortSignal.timeout(8000),
     });
 
-    if (!response.ok) return false;
+    if (!response.ok) return null;
 
     const html = await response.text();
     const dataMatch = html.match(/<script[^>]*id="data"[^>]*>([\s\S]*?)<\/script>/i);
-    if (!dataMatch) return false;
+    if (!dataMatch) return null;
 
     try {
       const vimeusData = JSON.parse(dataMatch[1]);
       const sources = vimeusData.embeds || [];
       return sources.some((e: { url?: string; lang?: string | null; subtitle?: number }) => {
         if (!e.url || e.subtitle) return false;
-        const value = (e.lang || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
-        return /latino|latam|latin america|es-419|spanish latino|espanol latino|ingles|english|\\beng?\\b/.test(value)
+        const value = (e.lang || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return /latino|latam|latin america|es-419|spanish latino|espanol latino|ingles|english|\beng?\b/.test(value)
           || /vimeos\./i.test(e.url);
       });
     } catch {
-      return false;
+      return null;
     }
   } catch {
-    return false;
+    return null;
   }
 }
 
 /**
  * Check a single item using Vimeus with cache.
  */
-async function checkSingle(id: number, type: string): Promise<boolean> {
+async function checkSingle(id: number, type: string): Promise<CheckResult> {
   const cacheKey = getCacheKey(id, type);
-
   const cached = sourceCache.get(cacheKey);
-  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-    return cached.available;
-  }
+  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) return cached.available;
 
-  // For TV shows, Vimeus requires a season/episode reference to return
-  // embeds. The playback path (source/route.ts) defaults to s1/e1; the
-  // check must do the same, otherwise every series reports unavailable
-  // and gets blacklisted, emptying the Series page.
+  const existing = inFlightChecks.get(cacheKey);
+  if (existing) return existing;
+
+  // TV checks are only a hint; playback validates the selected episode.
   const season = type === 'tv' ? '1' : undefined;
   const episode = type === 'tv' ? '1' : undefined;
-  const available = await checkVimeus(id, type, season, episode);
-
-  sourceCache.set(cacheKey, { available, timestamp: Date.now() });
-  return available;
+  const request = checkVimeus(id, type, season, episode).then((available) => {
+    if (available !== null) sourceCache.set(cacheKey, { available, timestamp: Date.now() });
+    return available;
+  }).finally(() => {
+    if (inFlightChecks.get(cacheKey) === request) inFlightChecks.delete(cacheKey);
+  });
+  inFlightChecks.set(cacheKey, request);
+  return request;
 }
 
 export async function GET(request: NextRequest) {
@@ -117,15 +121,15 @@ export async function GET(request: NextRequest) {
 
   for (let i = 0; i < batchIds.length; i += concurrency) {
     const chunk = batchIds.slice(i, i + concurrency);
-    const checks = await Promise.all(
-      chunk.map(async (id) => {
-        const available = await checkSingle(id, type);
-        return { id, available };
-      })
-    );
-    for (const { id, available } of checks) {
-      results[String(id)] = available;
-    }
+      const checks = await Promise.all(
+        chunk.map(async (id) => {
+          const available = await checkSingle(id, type);
+          return { id, available };
+        })
+      );
+      for (const { id, available } of checks) {
+        if (available !== null) results[String(id)] = available;
+      }
   }
 
   // Periodically clean old cache entries

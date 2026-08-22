@@ -23,6 +23,7 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
   const myList = useStore((s) => s.myList);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [imagePath, setImagePath] = useState(item.poster_path || item.backdrop_path);
   const [isHovered, setIsHovered] = useState(false);
 
   const isFav = myList.some(m => m.id === item.id);
@@ -30,15 +31,39 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
 
   const cardWidth = 'w-[172px] sm:w-[190px] md:w-[214px] lg:w-[224px]';
 
-  // Rows intentionally use posters only; backdrops are landscape artwork.
-  const imgPath = item.poster_path;
+  const handleImageError = () => {
+    if (imagePath === item.poster_path && item.backdrop_path) {
+      setImgLoaded(false);
+      setImagePath(item.backdrop_path);
+      return;
+    }
+    setImgError(true);
+  };
 
-  if (!imgPath || imgError) {
+  const artworkUrl = imagePath
+    ? `https://image.tmdb.org/t/p/${imagePath === item.poster_path ? 'w342' : 'w780'}${imagePath}`
+    : null;
+  const artworkSrcSet = imagePath
+    ? imagePath === item.poster_path
+      ? `https://image.tmdb.org/t/p/w185${imagePath} 185w, https://image.tmdb.org/t/p/w342${imagePath} 342w`
+      : `https://image.tmdb.org/t/p/w342${imagePath} 342w, https://image.tmdb.org/t/p/w780${imagePath} 780w`
+    : undefined;
+
+  if (!artworkUrl || imgError) {
     return (
-      <div className={`${cardWidth} shrink-0`}>
-        <div className="nfx-card-img flex items-center justify-center">
+      <div
+        className={`${cardWidth} shrink-0 relative group`}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <button
+          type="button"
+          className="nfx-card-img flex items-center justify-center cursor-pointer w-full"
+          onClick={() => handleCardClick(item)}
+          aria-label={`Más información: ${title}`}
+        >
           <span className="text-white/25 text-[11px] font-medium text-center px-4 leading-snug">{title}</span>
-        </div>
+        </button>
         <p className="text-white/85 text-[13px] font-normal leading-tight mt-2 truncate">{title}</p>
       </div>
     );
@@ -59,15 +84,15 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
       >
         {!imgLoaded && <div className="absolute inset-0 skeleton-shimmer" />}
         <img
-          src={`https://image.tmdb.org/t/p/w342${imgPath}`}
-          srcSet={`https://image.tmdb.org/t/p/w185${imgPath} 185w, https://image.tmdb.org/t/p/w342${imgPath} 342w`}
+          src={artworkUrl}
+          srcSet={artworkSrcSet}
           sizes="(max-width: 640px) 172px, (max-width: 900px) 190px, 224px"
           alt={title}
           className="w-full h-full object-cover transition-opacity duration-300"
           style={{ opacity: imgLoaded ? 1 : 0 }}
           onLoad={() => setImgLoaded(true)}
-          onError={() => setImgError(true)}
-          loading={index < 4 ? 'eager' : 'lazy'}
+          onError={handleImageError}
+          loading={index < 2 ? 'eager' : 'lazy'}
           decoding="async"
         />
 

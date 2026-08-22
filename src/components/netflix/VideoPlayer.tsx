@@ -9,6 +9,7 @@ import {
 import {
   useStore,
 } from '@/store/useStore';
+import { sourceLanguageKey } from '@/lib/sourceLanguage';
 
 /* ─── Types ──────────────────────────────────────────────────────── */
 
@@ -93,12 +94,7 @@ function isIOS(): boolean {
 }
 
 function getLangKey(lang: string | null): 'en' | 'es-latino' | null {
-  const value = (lang || '').toLowerCase().trim()
-    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
-  if (/sub(title)?|caption|cc\\b|castellano|espanol(?! latino)/.test(value)) return null;
-  if (/ingles|english|\\beng?\\b|\\ben-us\\b|\\ben-gb\\b/.test(value)) return 'en';
-  if (/latino|latam|latin america|es-419|spanish latino|espanol latino/.test(value)) return 'es-latino';
-  return null;
+  return sourceLanguageKey(lang);
 }
 
 function getLangDisplayName(lang: string | null): string {
@@ -135,7 +131,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
   // Seed with preloadedSources (wrapper cache) — video loading starts on the
   // FIRST render instead of after a fetch-effect round trip.
   const [sources, setSources] = useState<SourceInfo[]>(
-    preloadedSources && preloadedSources.length > 0 ? preloadedSources : []
+    preloadedSources?.filter((source) => getLangKey(source.language)) || []
   );
   const closedRef = useRef(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
@@ -152,12 +148,9 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
   const [subtitleUrl, setSubtitleUrl] = useState<string | null>(null);
   const subtitlesFetchedRef = useRef(false);
 
-  // Fetch sources (or use preloaded/cached ones)
+  // Fetch sources only when the wrapper did not resolve them already.
   useEffect(() => {
-    if (preloadedSources && preloadedSources.length > 0) {
-      setSources(preloadedSources);
-      return;
-    }
+    if (preloadedSources && preloadedSources.length > 0) return;
 
     let cancelled = false;
     const params = new URLSearchParams({ id: String(tmdbId), type: mediaType });
@@ -168,7 +161,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
 
     // Check client-side cache first — instant on repeat visits
     const cacheKey = `src:${tmdbId}:${mediaType}:${season || ''}:${episode || ''}`;
-    const cached = getCachedSources(cacheKey);
+    const cached = getCachedSources(cacheKey)?.filter((source) => getLangKey(source.language));
     if (cached && cached.length > 0) {
       setSources(cached);
       return;
@@ -178,7 +171,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
       .then(r => r.json())
       .then(data => {
         if (cancelled) return;
-        const allSources = data.sources || [];
+        const allSources = (data.sources || []).filter((source: SourceInfo) => getLangKey(source.language));
         if (allSources.length > 0) {
           setCachedSources(cacheKey, allSources);
           setSources(allSources);
@@ -285,9 +278,9 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
         lowLatencyMode: false,
         // BIG BUFFER: keep up to 90s ahead (5 min max) so slow/hiccupy
         // connections keep playing — the player stores lots of upcoming video.
-        maxBufferLength: 90,
-        maxMaxBufferLength: 300,
-        maxBufferSize: 150 * 1000 * 1000,
+        maxBufferLength: 24,
+        maxMaxBufferLength: 90,
+        maxBufferSize: 48 * 1000 * 1000,
         manifestLoadingTimeOut: 15000,
         manifestLoadingMaxRetry: 3,
         levelLoadingTimeOut: 15000,
@@ -301,7 +294,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
         // drops down on slow connections so the video never stalls.
         startLevel: -1,
         abrEwmaDefaultEstimate: 1500000,
-        capLevelToPlayerSize: false,
+        capLevelToPlayerSize: true,
         maxBufferHole: 0.5,
         startFragPrefetch: true,
         // Skip the bandwidth-probe fragment hls.js downloads before the
@@ -614,18 +607,6 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
                       const idx = findSourceForLanguage(sources, lang.key);
                       if (idx >= 0 && idx !== sourceIdx) {
                         // Save position before switching so we resume there.
-                        const v = videoRef.current;
-                        if (v && v.currentTime > 0) {
-                          resumeTimeRef.current = v.currentTime;
-                        }
-                        if (hlsRef.current) {
-                          hlsRef.current.destroy();
-                          hlsRef.current = null;
-                        }
-                        if (v) {
-                          v.removeAttribute('src');
-                          v.load();
-                        }
                         setSourceIdx(idx);
                       }
                       setLangMenuOpen(false);
@@ -679,7 +660,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
   // Seed with preloadedSources (wrapper cache) — video loading starts on
   // the FIRST render instead of after a fetch-effect round trip.
   const [sources, setSources] = useState<SourceInfo[]>(
-    preloadedSources && preloadedSources.length > 0 ? preloadedSources : []
+    preloadedSources?.filter((source) => getLangKey(source.language)) || []
   );
   const [currentSource, setCurrentSource] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -822,12 +803,9 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
     };
   }, [subtitleUrl]);
 
-  // FETCH SOURCES
+  // FETCH SOURCES only when the wrapper did not resolve them already.
   useEffect(() => {
-    if (preloadedSources && preloadedSources.length > 0) {
-      setSources(preloadedSources);
-      return;
-    }
+    if (preloadedSources && preloadedSources.length > 0) return;
 
     let cancelled = false;
     const params = new URLSearchParams({ id: String(tmdbId), type: mediaType });
@@ -838,7 +816,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
 
     // Check client-side cache first
     const cacheKey = `src:${tmdbId}:${mediaType}:${season || ''}:${episode || ''}`;
-    const cached = getCachedSources(cacheKey);
+    const cached = getCachedSources(cacheKey)?.filter((source) => getLangKey(source.language));
     if (cached && cached.length > 0) {
       setSources(cached);
       return;
@@ -848,7 +826,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
       .then(r => r.json())
       .then(data => {
         if (cancelled) return;
-        const allSources = data.sources || [];
+        const allSources = (data.sources || []).filter((source: SourceInfo) => getLangKey(source.language));
         if (allSources.length > 0) {
           setCachedSources(cacheKey, allSources);
           setSources(allSources);
@@ -950,9 +928,9 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
         lowLatencyMode: false,
         // BIG BUFFER: keep up to 90s ahead (5 min max) so slow/hiccupy
         // connections keep playing — the player stores lots of upcoming video.
-        maxBufferLength: 90,
-        maxMaxBufferLength: 300,
-        maxBufferSize: 150 * 1000 * 1000,
+        maxBufferLength: 24,
+        maxMaxBufferLength: 90,
+        maxBufferSize: 48 * 1000 * 1000,
         manifestLoadingTimeOut: 15000,
         manifestLoadingMaxRetry: 3,
         levelLoadingTimeOut: 15000,
@@ -965,7 +943,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
         // connections and drops down on slow ones so video never stalls.
         startLevel: -1,
         abrEwmaDefaultEstimate: 1500000,
-        capLevelToPlayerSize: false,
+        capLevelToPlayerSize: true,
         maxBufferHole: 0.5,
         startFragPrefetch: true,
         // Skip the bandwidth-probe fragment hls.js downloads before the
@@ -1012,26 +990,24 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
         video.play().catch(() => {});
       });
 
-      // Track non-fatal network errors so we can recover gracefully.
+      // Recover transient HLS failures a small number of times, then let the
+      // source timeout advance to the next verified server.
       let nonFatalRetries = 0;
+      let fatalRecoveries = 0;
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data.fatal) {
-          clearTimeout(loadTimeout);
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              // Proxy/CDN hiccup — resume from current position instead of
-              // killing the stream. This fixes "se cae en mitad del stream".
-              console.log('[HLS] Fatal network error, recovering...');
-              hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              console.log('[HLS] Fatal media error, recovering...');
-              hls.recoverMediaError();
-              break;
-            default:
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR || data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+            fatalRecoveries += 1;
+            if (fatalRecoveries > 2) {
               onSourceError();
-              break;
+              return;
+            }
+            console.log(`[HLS] Fatal ${data.type} error, recovery ${fatalRecoveries}/2...`);
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+            else hls.recoverMediaError();
+            return;
           }
+          onSourceError();
         } else if (!data.fatal && nonFatalRetries < 3) {
           // Transient fragment/level load errors — kick HLS to retry from
           // the current position instead of freezing silently.
@@ -1079,85 +1055,6 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
         hlsRef.current = null;
       }
     };
-  }, [sources, currentSource]);
-
-  // ─── PARALLEL SEGMENT PRELOADER ───
-  // The proxy path is latency-bound (browser → Vercel → CDN per segment),
-  // so hls.js's sequential downloads throttle playback on slow links. This
-  // preloader fetches upcoming segments AHEAD of playback, up to 3 in
-  // parallel, filling the browser HTTP cache (segments cacheable 24h) —
-  // hls.js then gets them as instant cache hits instead of ~1s round trips.
-  const prefetchedSegsRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    prefetchedSegsRef.current = new Set();
-    const video = videoRef.current;
-    if (!video) return;
-
-    let active = true;
-    const MAX_PARALLEL = 4;  // concurrent prefetches per tick
-
-    const tick = async () => {
-      if (!active || video.paused || video.ended) return;
-      const hls = hlsRef.current;
-      if (!hls || !hls.levels?.length) return;
-
-      // Only prefetch when the buffer is thin AND only BEYOND what hls.js
-      // has already buffered — competing for the same segments wastes
-      // bandwidth (measured: preloader grabbed 480p junk while hls.js
-      // needed 1080p). These fetches become future cache hits instead.
-      let bufEnd = video.currentTime;
-      for (let i = 0; i < video.buffered.length; i++) {
-        if (video.buffered.start(i) <= video.currentTime && video.buffered.end(i) > bufEnd) {
-          bufEnd = video.buffered.end(i);
-        }
-      }
-      if (bufEnd - video.currentTime > 60) return; // buffer healthy — stand by
-
-      const lvl = hls.loadLevel >= 0 ? hls.loadLevel : hls.currentLevel;
-      if (lvl == null || lvl < 0 || !hls.levels[lvl]?.url) return;
-      // hls.js types Level.url as string | string[] — normalize it
-      const plUrl = Array.isArray(hls.levels[lvl].url)
-        ? hls.levels[lvl].url[0]
-        : hls.levels[lvl].url as string;
-
-      try {
-        // Media playlist is browser-cached 5 min — this fetch is ~free after
-        // the first one.
-        const res = await fetch(plUrl);
-        const text = await res.text();
-        if (!active) return;
-
-        // Parse #EXTINF:<dur> + URL pairs into a timeline
-        const segs: { url: string; start: number }[] = [];
-        let t = 0;
-        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-        for (let i = 0; i < lines.length; i++) {
-          const m = lines[i].match(/^#EXTINF:([\d.]+),?/);
-          if (m) {
-            const url = lines[i + 1];
-            if (url && !url.startsWith('#')) {
-              segs.push({ url, start: t });
-              t += parseFloat(m[1]);
-            }
-          }
-        }
-
-        // Target the window JUST BEYOND the buffer hls.js is filling
-        const toFetch = segs
-          .filter(s => s.start >= bufEnd && s.start < bufEnd + 60)
-          .filter(s => !prefetchedSegsRef.current.has(s.url))
-          .slice(0, MAX_PARALLEL);
-
-        for (const s of toFetch) {
-          prefetchedSegsRef.current.add(s.url);
-          fetch(s.url).catch(() => {});
-        }
-      } catch { /* playlist fetch failed — hls.js loads its own anyway */ }
-    };
-
-    const interval = setInterval(tick, 2000);
-    tick();
-    return () => { active = false; clearInterval(interval); };
   }, [sources, currentSource]);
 
   // SUBTITLE TRACK MANAGEMENT — apply subtitles to the video element
@@ -1540,7 +1437,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
     changeVolume(pct);
   };
 
-  const changeLanguage = (langKey: string) => {
+  const changeLanguage = useCallback((langKey: string) => {
     const idx = findSourceForLanguage(sources, langKey);
     if (idx >= 0 && idx !== currentSource) {
       // Save current position before tearing down so we can resume there.
@@ -1561,7 +1458,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
       console.log(`[Player] Switching language to ${langKey}, source index ${idx}, resume @ ${resumeTimeRef.current.toFixed(1)}s`);
     }
     setLangMenuOpen(false);
-  };
+  }, [sources, currentSource]);
 
   const changeSource = (idx: number) => {
     if (idx < 0 || idx === currentSource) return;
@@ -2433,18 +2330,22 @@ export default function VideoPlayer() {
     const cached = getCachedSources(cacheKey);
     if (cached && cached.length > 0) {
       const allowedCached = cached.filter((source) => getLangKey(source.language));
-      if (allowedCached.length === 0) return;
-      setSources(allowedCached);
-      setSourcesForMovie(currentMovieKey);
-      setSourceLoading(false);
-      return;
+      if (allowedCached.length > 0) {
+        setSources(allowedCached);
+        setSourcesForMovie(currentMovieKey);
+        setSourceLoading(false);
+        return;
+      }
+      try { sessionStorage.removeItem(cacheKey); } catch { /* ignore invalid cache */ }
     }
 
     // Cold serverless instances sometimes return 0 sources on the very first
     // request for a title (both providers still warming). One quick retry
     // after the instance has warmed fixes it — the user never sees the error.
+    const controller = new AbortController();
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     const fetchSources = (attempt: number) => {
-      fetch(`/api/source?${params}`)
+      fetch(`/api/source?${params}`, { signal: controller.signal })
         .then(r => r.json())
         .then(data => {
           if (cancelled) return;
@@ -2455,7 +2356,7 @@ export default function VideoPlayer() {
             setSourcesForMovie(currentMovieKey);
             setSourceLoading(false);
           } else if (attempt === 0) {
-            setTimeout(() => fetchSources(1), 700);
+            retryTimer = setTimeout(() => fetchSources(1), 700);
           } else {
             setSourceError('No se pudo reproducir este contenido');
             setSourceLoading(false);
@@ -2464,7 +2365,7 @@ export default function VideoPlayer() {
         .catch(() => {
           if (cancelled) return;
           if (attempt === 0) {
-            setTimeout(() => fetchSources(1), 700);
+            retryTimer = setTimeout(() => fetchSources(1), 700);
           } else {
             setSourceError('No se pudo cargar el contenido');
             setSourceLoading(false);
@@ -2473,7 +2374,11 @@ export default function VideoPlayer() {
     };
     fetchSources(0);
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [isPlaying, playerTmdbId, playerMediaType, playerSeason, playerEpisode]);
 
   if (isPlaying && directPlayUrl) {
