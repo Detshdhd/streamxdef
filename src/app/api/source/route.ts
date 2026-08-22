@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createDecipheriv } from 'crypto';
+import http2 from 'node:http2';
 import { normalizeSourceLanguage, isAllowedSourceLanguage } from '@/lib/sourceLanguage';
 
 // Allow up to 10s on Vercel so both Vidrock + Vimeus can finish.
@@ -392,6 +393,36 @@ const VIMEOS_EMBED_HEADERS: Record<string, string> = {
 const DEAD_VIMEOS_HOSTS = ['s12.vimeos.net'];
 
 /**
+ * vimeos.net hands out POISONED stream tokens to HTTP/1.1 clients while the
+ * same page served over HTTP/2 carries valid ones (verified live: undici/H1
+ * mint → CDN 403 for every client; H2 mint → 200). Node's global fetch
+ * (undici) only speaks HTTP/1.1, so the embed page must be fetched through
+ * the native http2 module for the minted token to validate.
+ */
+function h2FetchText(url: string, headers: Record<string, string>, timeoutMs: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const done = (fn: () => void) => { if (!settled) { settled = true; fn(); } };
+    try {
+      const u = new URL(url);
+      const session = http2.connect(u.origin);
+      session.setTimeout(timeoutMs, () => done(() => { session.destroy(); reject(new Error('h2 timeout')); }));
+      session.on('error', (err) => done(() => reject(err)));
+      const req = session.request({
+        ':method': 'GET',
+        ':path': u.pathname + u.search,
+        ...Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v])),
+      });
+      const chunks: Buffer[] = [];
+      req.on('data', (d: Buffer) => chunks.push(d));
+      req.on('error', (err) => done(() => { session.destroy(); reject(err); }));
+      req.on('end', () => done(() => { session.close(); resolve(Buffer.concat(chunks).toString('utf-8')); }));
+      req.end();
+    } catch (err) { done(() => reject(err instanceof Error ? err : new Error(String(err)))); }
+  });
+}
+
+/**
  * Decode a P.A.C.K.E.R. payload WITHOUT the packer's self-running
  * decoder. Replicates its exact substitution — replace every base-N
  * encoded index token with its key, from the highest index down — so
@@ -428,14 +459,15 @@ function unpackVimeosPacker(html: string): string | null {
  */
 async function mintVimeosMaster(embedUrl: string, signal?: AbortSignal): Promise<string | null> {
   try {
-    const page = await fetch(embedUrl, {
-      headers: VIMEOS_EMBED_HEADERS,
-      redirect: 'follow',
-      signal: requestSignal(signal, 4000),
-    });
-    if (!page.ok) return null;
-
-    const js = unpackVimeosPacker(await page.text());
+    // The embed page MUST be fetched over HTTP/2 — see h2FetchText. The
+    // outer abort signal is honored via the per-mint timeout race below.
+    const page = await Promise.race([
+      h2FetchText(embedUrl, VIMEOS_EMBED_HEADERS, 4000),
+      signal ? new Promise<never>((_, reject) => {
+        signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+      }) : new Promise<never>(() => {}),
+    ]);
+    const js = unpackVimeosPacker(page);
     if (!js) return null;
 
     const fileMatch = js.match(/file:"(https:[^"]+\.m3u8[^"]*)"/);
@@ -460,22 +492,27 @@ async function mintVimeosMaster(embedUrl: string, signal?: AbortSignal): Promise
 }
 
 /**
- * Extract a DIRECT m3u8 from a vimeos embed. Fire 6 mint attempts in
- * parallel and return the FIRST that validates (early-exit race) —
- * measured ~70% per-mint success on healthy mirrors, so latency is
- * typically one mint (~0.6-0.9s) instead of waiting for the slowest.
+ * Extract DIRECT m3u8 URLs from a vimeos embed. Each mint yields an
+ * independently-signed master (different shard host + token, verified by
+ * probing live), so collecting a few DISTINCT results gives real redundant
+ * Spanish sources instead of one. All attempts run in parallel; failures
+ * are ignored as long as at least one mint validates.
  */
-async function extractVimeosDirect(embedUrl: string, signal?: AbortSignal): Promise<string | null> {
-  const attempts = Array.from({ length: 3 }, async () => {
-    const url = await mintVimeosMaster(embedUrl, signal);
-    if (!url) throw new Error('mint failed');
-    return url;
-  });
-  try {
-    return await Promise.any(attempts);
-  } catch {
-    return null;
+async function extractVimeosDirectSet(embedUrl: string, signal?: AbortSignal, maxDistinct = 2): Promise<string[]> {
+  const attempts = Array.from({ length: 4 }, () =>
+    mintVimeosMaster(embedUrl, signal).then((url) => {
+      if (!url) throw new Error('mint failed');
+      return url;
+    }),
+  );
+  const settled = await Promise.allSettled(attempts);
+  const distinct: string[] = [];
+  for (const result of settled) {
+    if (result.status !== 'fulfilled') continue;
+    if (!distinct.includes(result.value)) distinct.push(result.value);
+    if (distinct.length >= maxDistinct) break;
   }
+  return distinct;
 }
 
 function getServerDisplayName(embed: VimeusEmbed, index: number): string {
@@ -597,26 +634,31 @@ async function fetchVimeusSources(tmdbId: number, type: string, season?: string,
 
     const allSources: ResolvedSource[] = [];
 
-    // VIMEOS.NET (Vimeus' own provider) — extract a signed master.m3u8
-    // directly. Try the best two mirrors in parallel and stop at the first hit.
+    // VIMEOS.NET (Vimeus' own provider) — extract signed master.m3u8 URLs
+    // directly. Try the best two mirrors in parallel; each may yield several
+    // DISTINCT masters (different shard + token), each becoming its own
+    // redundant Latino source.
     const vimeosEmbeds = sortedEmbeds.filter(e => e.url.includes('vimeos.')).slice(0, 2);
     const directResults = await Promise.all(vimeosEmbeds.map(async (embed) => ({
       embed,
-      directUrl: await extractVimeosDirect(embed.url, signal),
+      directUrls: await extractVimeosDirectSet(embed.url, signal, 2),
     })));
-    for (const { embed, directUrl } of directResults) {
-      if (directUrl) {
-        console.log(`[Vimeus] ✅ vimeos DIRECT m3u8: ${directUrl.substring(0, 90)}...`);
+    for (const { embed, directUrls } of directResults) {
+      if (directUrls.length === 0) {
+        console.log(`[Vimeus] ⚠️ direct extraction failed for ${embed.url}`);
+        continue;
+      }
+      directUrls.forEach((directUrl, urlIdx) => {
+        console.log(`[Vimeus] ✅ vimeos DIRECT m3u8 (#${urlIdx + 1}): ${directUrl.substring(0, 90)}...`);
+        const baseName = getServerDisplayName(embed, 0).replace(/ \((Latino|[^)]*)\)$/, '');
         allSources.push({
-          name: getServerDisplayName(embed, 0),
+          name: urlIdx === 0 ? `${baseName} (Latino)` : `${baseName} ${urlIdx + 1} (Latino)`,
           url: directUrl,
           type: 'hls',
           quality: embed.quality || undefined,
           language: getVimeusLanguage(embed),
         });
-      } else {
-        console.log(`[Vimeus] ⚠️ direct extraction failed for ${embed.url}`);
-      }
+      });
     }
     const extractableEmbeds = sortedEmbeds.filter(e => !e.url.includes('vimeos.'));
 
