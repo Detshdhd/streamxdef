@@ -803,10 +803,14 @@ export default function Home() {
 
   // Load the visible catalogue rows first, then more on scroll.
   useEffect(() => {
-    let cancelled = false;
     const activeSections = getActiveSections();
     const wanted = activeSections.slice(0, loadedCount);
-    const requestController = new AbortController();
+    // Guards ONLY the stale-while-revalidate background refreshes. Section
+    // fetches are intentionally NOT aborted on re-run: the scroll sentinel
+    // grows loadedCount repeatedly while the page is short, and aborting
+    // in-flight row requests on each re-run is exactly what used to kill
+    // the FIRST (visible!) rows and leave their skeletons forever.
+    let cancelled = false;
 
     // Initialize slots + set visible ones to loading state (but keep the
     // data already loaded for rows that are still in view). Deferred to a
@@ -849,11 +853,11 @@ export default function Home() {
     }
 
     // PROGRESSIVE PAINTING: each row updates the moment its own data
-    // arrives — no row ever waits on another. A hard timeout per request
-    // plus one retry means a single stuck/slow request can no longer hold
-    // the whole catalog in skeletons.
+    // arrives — no row ever waits on another. Application is NOT gated on
+    // effect re-runs: a section's data is deterministic by type, and the
+    // setSections map is a no-op for types not in the current tab, so a
+    // late result can never corrupt the view.
     function applySectionData(type: string, results: MediaItem[] | null) {
-      if (cancelled) return;
       if (type === 'trending' && results) {
         setTrendingItems(results.filter((item: MediaItem) =>
           hasArtwork(item) &&
@@ -875,20 +879,23 @@ export default function Home() {
     }
 
     async function fetchJson(url: string, timeoutMs: number): Promise<{ results?: MediaItem[] }> {
-      const timeoutController = new AbortController();
-      const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
-      const onOuterAbort = () => timeoutController.abort();
-      requestController.signal.addEventListener('abort', onOuterAbort, { once: true });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const r = await fetch(url, { signal: timeoutController.signal });
+        const r = await fetch(url, { signal: controller.signal });
         return await r.json();
       } finally {
         clearTimeout(timer);
-        requestController.signal.removeEventListener('abort', onOuterAbort);
       }
     }
 
     async function fetchSection(type: string) {
+      // Marked at START so effect re-runs never duplicate an in-flight
+      // request; unmarked again on terminal failure so a later run retries.
+      if (fetchedTypesRef.current.has(type)) return;
+      fetchedTypesRef.current.add(type);
+      const finishFailed = () => fetchedTypesRef.current.delete(type);
+
       // 1. Fresh local cache → use it, no network at all
       const cachedData = readCache(type);
       if (cachedData) {
@@ -915,15 +922,14 @@ export default function Home() {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           const data = await fetchJson(`/api/tmdb?type=${type}`, 8000);
-          if (cancelled) return;
           writeCache(type, data);
           applySectionData(type, data.results || []);
           return;
-        } catch {
-          if (cancelled) return;
-        }
+        } catch { /* retry */ }
       }
-      // Both attempts failed — paint the row as empty instead of skeleton forever
+      // Both attempts failed — paint the row as empty instead of skeleton
+      // forever, and let a future run (scroll) retry it.
+      finishFailed();
       applySectionData(type, null);
     }
 
@@ -931,10 +937,7 @@ export default function Home() {
       // Let the section-slot initialization microtask flush first so the
       // synchronous cache-hit path below maps over the FRESH slots.
       await Promise.resolve();
-      // SKIP any type already fetched or currently in flight (scroll-loading
-      // and effect re-runs never fire duplicate requests).
       const toFetch = wanted.filter(s => !fetchedTypesRef.current.has(s.type));
-      toFetch.forEach(s => fetchedTypesRef.current.add(s.type));
       // Each section paints independently as its data lands.
       await Promise.all(toFetch.map(async (section) => {
         await fetchSection(section.type);
@@ -942,7 +945,7 @@ export default function Home() {
     }
 
     loadAll();
-    return () => { cancelled = true; requestController.abort(); };
+    return () => { cancelled = true; };
   }, [activeTab, getActiveSections, loadedCount]);
 
   // Load more rows when the user scrolls near the bottom
