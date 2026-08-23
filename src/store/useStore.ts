@@ -195,12 +195,17 @@ interface AppState {
   hydrateMyList: () => void;
 }
 
-// Hydration-safe: always start with empty list on both server and client.
-// The actual localStorage data is loaded in a useEffect after mount
-// to avoid SSR/client mismatch.
+// Hydration-safe: ALWAYS start with empty client state so the first client
+// render matches the server HTML exactly (React #418 otherwise). All
+// localStorage-backed lists (my list, continue watching, downloads) are
+// loaded in a useEffect after mount via hydrateMyList().
 function loadMyList(): MediaItem[] {
   return [];
 }
+
+// See loadMyList: reads below only run AFTER mount (from hydrateMyList),
+// never at store creation — otherwise the client's first render differs
+// from the server HTML and React hydration fails (#418).
 
 function loadMyListFromStorage(): MediaItem[] {
   if (typeof window === 'undefined') return [];
@@ -217,7 +222,7 @@ function saveMyList(list: MediaItem[]) {
   } catch { /* quota exceeded */ }
 }
 
-// ── Continue Watching persistence ──
+// ── Continue Watching persistence (post-mount only — see loadMyList) ──
 function loadContinueWatching(): ContinueWatchingItem[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -282,8 +287,8 @@ export const useStore = create<AppState>((set, get) => ({
   },
   isInMyList: (id) => get().myList.some(m => m.id === id),
 
-  // Downloads
-  downloads: loadDownloads(),
+  // Downloads — persisted to localStorage, hydrated after mount
+  downloads: [],
   startDownload: (item) => {
     const { downloads } = get();
     const existing = downloads.find(d => d.id === item.id);
@@ -450,7 +455,8 @@ export const useStore = create<AppState>((set, get) => ({
   searchResults: [],
   searching: false,
 
-  continueWatching: loadContinueWatching(),
+  // Continue watching — persisted to localStorage, hydrated after mount
+  continueWatching: [],
   setContinueWatching: (items) => {
     set({ continueWatching: items });
     saveContinueWatching(items);
@@ -615,12 +621,16 @@ export const useStore = create<AppState>((set, get) => ({
   setSearchResults: (results) => set({ searchResults: results }),
   setSearching: (searching) => set({ searching }),
 
-  // Hydrate myList and blacklist from localStorage after mount (hydration-safe)
+  // Hydrate ALL localStorage-backed state after mount (hydration-safe).
+  // Runs once from a useEffect, never during render.
   hydrateMyList: () => {
     const stored = loadMyListFromStorage();
     if (stored.length > 0) {
       set({ myList: stored });
     }
+    // Continue watching + downloads (previously read at store creation,
+    // which caused the React #418 hydration mismatch on the home page)
+    set({ continueWatching: loadContinueWatching(), downloads: loadDownloads() });
     // Also hydrate blacklist
     const blacklist = loadBlacklist();
     if (blacklist.length > 0) {

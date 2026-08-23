@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { X, Play, Plus, ThumbsUp, ChevronDown, ChevronUp, Download, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { useStore, type MediaDetail, type Episode } from '@/store/useStore';
+import { getCachedSources, setCachedSources, sourceCacheKey } from '@/lib/sourceCache';
+import { sourceLanguageKey } from '@/lib/sourceLanguage';
 
 /* ── Anime detection ── */
 const ANIME_GENRE_IDS = [16]; // Animation genre in TMDB
@@ -142,6 +144,37 @@ export default function DetailModal() {
       import('@/components/netflix/VideoPlayer').catch(() => {});
     }
   }, [showDetail]);
+
+  // Prefetch the video SOURCES the moment the modal opens — resolving them
+  // takes 1-5s of live scraping, and doing it while the user reads the
+  // synopsis means pressing Reproducir starts playback from cache instantly.
+  // For TV we prefetch the season's first episode (the default play action);
+  // picking a different episode resolves at play time as before.
+  useEffect(() => {
+    if (!showDetail || isPlaying || !selectedItem) return;
+    const mediaType = selectedItem.media_type === 'tv' || selectedItem.name ? 'tv' : 'movie';
+    const id = selectedItem.id;
+    const season = mediaType === 'tv' ? selectedSeason : undefined;
+    const episode = mediaType === 'tv' ? 1 : undefined;
+    const key = sourceCacheKey(id, mediaType, season, episode);
+    if (getCachedSources(key)) return;
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({ id: String(id), type: mediaType });
+    if (mediaType === 'tv') {
+      params.set('s', String(season || 1));
+      params.set('e', String(episode || 1));
+    }
+    fetch(`/api/source?${params}`, { signal: controller.signal })
+      .then(r => r.json())
+      .then(data => {
+        const allowed = ((data.sources || []) as { name: string; url: string; type: 'hls' | 'mp4'; quality?: string; language: string | null }[])
+          .filter(s => sourceLanguageKey(s.language));
+        if (allowed.length > 0) setCachedSources(key, allowed);
+      })
+      .catch(() => { /* prefetch is best-effort; play resolves on demand */ });
+    return () => controller.abort();
+  }, [showDetail, isPlaying, selectedItem, selectedSeason]);
 
   if (!showDetail || !selectedItem || isPlaying) return null;
 

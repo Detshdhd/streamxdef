@@ -10,16 +10,7 @@ import {
   useStore,
 } from '@/store/useStore';
 import { sourceLanguageKey } from '@/lib/sourceLanguage';
-
-/* ─── Types ──────────────────────────────────────────────────────── */
-
-interface SourceInfo {
-  name: string;
-  url: string;
-  type: 'hls' | 'mp4';
-  quality?: string;
-  language: string | null;
-}
+import { getCachedSources, setCachedSources, sourceCacheKey, type SourceInfo } from '@/lib/sourceCache';
 
 interface PlayerInnerProps {
   tmdbId: number;
@@ -31,31 +22,6 @@ interface PlayerInnerProps {
   /** Backdrop image URL (already in browser cache from the modal) — shown
    *  by the <video> element instantly while hls.js decodes the first frame. */
   posterUrl?: string;
-}
-
-/* ─── Client-side source cache ──────────────────────────────────── */
-// Sources are expensive to resolve (1-5s of live scraping). Cache them in
-// sessionStorage for 10 minutes so re-opening a movie or switching language
-// is instant. Keys: "src:{tmdbId}:{type}:{s}:{e}".
-const SOURCE_CACHE_TTL = 10 * 60 * 1000; // 10 min (matches server-side)
-
-function getCachedSources(key: string): SourceInfo[] | null {
-  try {
-    const raw = sessionStorage.getItem(key);
-    if (!raw) return null;
-    const { sources, ts } = JSON.parse(raw);
-    if (Date.now() - ts > SOURCE_CACHE_TTL) {
-      sessionStorage.removeItem(key);
-      return null;
-    }
-    return sources;
-  } catch { return null; }
-}
-
-function setCachedSources(key: string, sources: SourceInfo[]) {
-  try {
-    sessionStorage.setItem(key, JSON.stringify({ sources, ts: Date.now() }));
-  } catch { /* quota full — ignore */ }
 }
 
 /* ─── Helpers ────────────────────────────────────────────────────── */
@@ -160,7 +126,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
     }
 
     // Check client-side cache first — instant on repeat visits
-    const cacheKey = `src:${tmdbId}:${mediaType}:${season || ''}:${episode || ''}`;
+    const cacheKey = sourceCacheKey(tmdbId, mediaType, season, episode);
     const cached = getCachedSources(cacheKey)?.filter((source) => getLangKey(source.language));
     if (cached && cached.length > 0) {
       setSources(cached);
@@ -815,7 +781,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
     }
 
     // Check client-side cache first
-    const cacheKey = `src:${tmdbId}:${mediaType}:${season || ''}:${episode || ''}`;
+    const cacheKey = sourceCacheKey(tmdbId, mediaType, season, episode);
     const cached = getCachedSources(cacheKey)?.filter((source) => getLangKey(source.language));
     if (cached && cached.length > 0) {
       setSources(cached);
@@ -2326,7 +2292,7 @@ export default function VideoPlayer() {
     }
 
     // Check client-side cache first — instant on repeat visits
-    const cacheKey = `src:${playerTmdbId}:${playerMediaType}:${playerSeason || ''}:${playerEpisode || ''}`;
+    const cacheKey = sourceCacheKey(playerTmdbId, playerMediaType, playerSeason, playerEpisode);
     const cached = getCachedSources(cacheKey);
     if (cached && cached.length > 0) {
       const allowedCached = cached.filter((source) => getLangKey(source.language));

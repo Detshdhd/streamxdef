@@ -771,9 +771,6 @@ export default function Home() {
   const [sections, setSections] = useState<ContentSection[]>([]);
   const [trendingItems, setTrendingItems] = useState<MediaItem[]>([]);
   const [viewAllSection, setViewAllSection] = useState<{ title: string; type: string; filter: 'movie' | 'tv' | 'all' } | null>(null);
-  // Avoid SSR/CSR hydration mismatch: continue-watching comes from
-  // localStorage which is only available on the client.
-  const [mounted] = useState(true);
 
   // ── LAZY loading: only a few rows load on mount; the rest load as the
   // user approaches the bottom (IntersectionObserver on a sentinel). This
@@ -812,7 +809,8 @@ export default function Home() {
     const requestController = new AbortController();
 
     // Initialize slots + set visible ones to loading state (but keep the
-    // data already loaded for rows that are still in view)
+    // data already loaded for rows that are still in view). Deferred to a
+    // microtask so it always lands before any fetch continuation below.
     queueMicrotask(() => setSections(prev => activeSections.map((s, idx) => {
       const existing = prev.find(p => p.type === s.type);
       const loading = idx < loadedCount && !(existing && existing.data.length > 0);
@@ -850,10 +848,51 @@ export default function Home() {
       } catch { /* quota full — ignore */ }
     }
 
+    // PROGRESSIVE PAINTING: each row updates the moment its own data
+    // arrives — no row ever waits on another. A hard timeout per request
+    // plus one retry means a single stuck/slow request can no longer hold
+    // the whole catalog in skeletons.
+    function applySectionData(type: string, results: MediaItem[] | null) {
+      if (cancelled) return;
+      if (type === 'trending' && results) {
+        setTrendingItems(results.filter((item: MediaItem) =>
+          hasArtwork(item) &&
+          (item.vote_average || 0) >= MIN_RATING &&
+          (item.vote_count || 0) >= MIN_VOTE_COUNT &&
+          (item.media_type === 'movie' || item.media_type === 'tv')
+        ));
+      }
+      setSections(prev => prev.map(section => {
+        if (section.type !== type) return section;
+        if (results === null) return { ...section, loading: false };
+        const items = results.filter((item: MediaItem) =>
+          hasArtwork(item) &&
+          (item.vote_average || 0) >= MIN_RATING &&
+          (item.vote_count || 0) >= MIN_VOTE_COUNT
+        );
+        return { ...section, data: items, loading: false };
+      }));
+    }
+
+    async function fetchJson(url: string, timeoutMs: number): Promise<{ results?: MediaItem[] }> {
+      const timeoutController = new AbortController();
+      const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
+      const onOuterAbort = () => timeoutController.abort();
+      requestController.signal.addEventListener('abort', onOuterAbort, { once: true });
+      try {
+        const r = await fetch(url, { signal: timeoutController.signal });
+        return await r.json();
+      } finally {
+        clearTimeout(timer);
+        requestController.signal.removeEventListener('abort', onOuterAbort);
+      }
+    }
+
     async function fetchSection(type: string) {
       // 1. Fresh local cache → use it, no network at all
       const cachedData = readCache(type);
       if (cachedData) {
+        applySectionData(type, cachedData.results || []);
         // Stale-while-revalidate: if past TTL, refresh quietly in background
         let cachedTimestamp = 0;
         try {
@@ -861,66 +900,45 @@ export default function Home() {
           cachedTimestamp = raw ? Number(JSON.parse(raw).ts) || 0 : 0;
         } catch { cachedTimestamp = 0; }
         if (Date.now() - cachedTimestamp > cacheTtl(type)) {
-          fetch(`/api/tmdb?type=${type}`)
-            .then(r => r.json())
-            .then(fresh => {
+          fetchJson(`/api/tmdb?type=${type}`, 8000)
+            .then((fresh) => {
               if (!cancelled && fresh?.results?.length) {
                 writeCache(type, fresh);
-                setSections(prev => prev.map(section => section.type === type
-                  ? { ...section, data: fresh.results.filter((item: MediaItem) => hasArtwork(item)), loading: false }
-                  : section));
+                applySectionData(type, fresh.results);
               }
             })
             .catch(() => {});
         }
-        return { type, data: cachedData };
+        return;
       }
-      // 2. No cache → network (edge-cached on Vercel, so usually fast)
-      const r = await fetch(`/api/tmdb?type=${type}`, { signal: requestController.signal });
-      const data = await r.json();
-      writeCache(type, data);
-      return { type, data };
+      // 2. No cache → network (edge-cached on Vercel) with timeout + one retry
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const data = await fetchJson(`/api/tmdb?type=${type}`, 8000);
+          if (cancelled) return;
+          writeCache(type, data);
+          applySectionData(type, data.results || []);
+          return;
+        } catch {
+          if (cancelled) return;
+        }
+      }
+      // Both attempts failed — paint the row as empty instead of skeleton forever
+      applySectionData(type, null);
     }
 
     async function loadAll() {
-      // ALL sections load in PARALLEL — including trending. The old code
-      // awaited trending before firing the rest, adding ~500ms serially.
-      // SKIP any type already fetched (scroll-loading never refetches).
+      // Let the section-slot initialization microtask flush first so the
+      // synchronous cache-hit path below maps over the FRESH slots.
+      await Promise.resolve();
+      // SKIP any type already fetched or currently in flight (scroll-loading
+      // and effect re-runs never fire duplicate requests).
       const toFetch = wanted.filter(s => !fetchedTypesRef.current.has(s.type));
-      const results = await Promise.all(
-        toFetch.map(async (section) => {
-          try { return await fetchSection(section.type); }
-          catch { return { type: section.type, data: { results: [] } }; }
-        })
-      );
-
-      if (cancelled) return;
-
-      for (const result of results) {
-        fetchedTypesRef.current.add(result.type);
-      }
-
-      const nextSections = [...activeSections].map((section, idx) => {
-        const result = results.find((entry) => entry.type === section.type);
-        if (!result) return { ...section, data: [], loading: idx < loadedCount };
-        const items: MediaItem[] = (result.data.results || []).filter((item: MediaItem) =>
-          hasArtwork(item) &&
-          (item.vote_average || 0) >= MIN_RATING &&
-          (item.vote_count || 0) >= MIN_VOTE_COUNT
-        );
-        return { ...section, data: items, loading: false };
-      });
-
-      const trendingResult = results.find((result) => result.type === 'trending');
-      if (trendingResult) {
-        setTrendingItems((trendingResult.data.results || []).filter((item: MediaItem) =>
-          hasArtwork(item) &&
-          (item.vote_average || 0) >= MIN_RATING &&
-          (item.vote_count || 0) >= MIN_VOTE_COUNT &&
-          (item.media_type === 'movie' || item.media_type === 'tv')
-        ));
-      }
-      setSections(nextSections);
+      toFetch.forEach(s => fetchedTypesRef.current.add(s.type));
+      // Each section paints independently as its data lands.
+      await Promise.all(toFetch.map(async (section) => {
+        await fetchSection(section.type);
+      }));
     }
 
     loadAll();
@@ -1051,7 +1069,7 @@ export default function Home() {
         {myList.length > 0 && activeTab === 'inicio' && (
           <ContentRow title="Mi Lista" items={myList} />
         )}
-        {mounted && continueWatching.length > 0 && activeTab === 'inicio' && (
+        {continueWatching.length > 0 && activeTab === 'inicio' && (
           <ContinueWatchingRow items={continueWatching} />
         )}
 
