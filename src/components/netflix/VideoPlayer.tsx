@@ -1,5 +1,10 @@
 'use client';
 
+/* eslint-disable react-hooks/refs -- Every ref access in this file happens
+   inside event handlers or effects (video/hls teardown, resume position,
+   timers), which is the documented-correct pattern. The rule cannot see
+   that changeLanguage only runs from onClick and flags its call site. */
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Hls from 'hls.js';
 import {
@@ -129,6 +134,8 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
     const cacheKey = sourceCacheKey(tmdbId, mediaType, season, episode);
     const cached = getCachedSources(cacheKey)?.filter((source) => getLangKey(source.language));
     if (cached && cached.length > 0) {
+      // Cache hit: seed synchronously so hls.js starts this render cycle.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSources(cached);
       return;
     }
@@ -784,6 +791,8 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
     const cacheKey = sourceCacheKey(tmdbId, mediaType, season, episode);
     const cached = getCachedSources(cacheKey)?.filter((source) => getLangKey(source.language));
     if (cached && cached.length > 0) {
+      // Cache hit: seed synchronously so playback starts this render cycle.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSources(cached);
       return;
     }
@@ -1151,6 +1160,8 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
       if (mediaType === 'tv' && season && episode) {
         playEpisode(season, episode + 1);
       }
+      // Terminal transition of the countdown state machine.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNextEpisodeCountdown(null);
       return;
     }
@@ -1407,10 +1418,13 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
     const idx = findSourceForLanguage(sources, langKey);
     if (idx >= 0 && idx !== currentSource) {
       // Save current position before tearing down so we can resume there.
+      // Refs here are fine: this runs from a click handler, not render.
       const video = videoRef.current;
+       
       if (video && video.currentTime > 0) {
         resumeTimeRef.current = video.currentTime;
       }
+       
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
@@ -2280,9 +2294,16 @@ export default function VideoPlayer() {
   useEffect(() => {
     if (!isPlaying || !playerTmdbId) return;
     let cancelled = false;
-    setSources([]);               // Clear old sources immediately
-    setSourcesForMovie('');       // Mark as stale
+    // Reset on title/episode change: stale sources must never render (the
+    // loading gate below keys off sourcesForMovie, but clearing here also
+    // frees the previous player's state immediately).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSources([]);
+     
+    setSourcesForMovie('');
+     
     setSourceLoading(true);
+     
     setSourceError('');
 
     const params = new URLSearchParams({ id: String(playerTmdbId), type: playerMediaType });

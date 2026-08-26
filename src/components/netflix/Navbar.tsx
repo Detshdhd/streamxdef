@@ -115,7 +115,12 @@ export default function Navbar() {
   };
 
   const closeSearch = () => { setSearchOpen(false); setSearchQuery(''); setSearchResults([]); };
-  const openSearch = () => { setActiveTab('buscar'); };
+  const openSearch = () => {
+    setActiveTab('buscar');
+    // The results dropdown renders only while searchOpen — without this the
+    // navbar query resolves but its results never become visible.
+    setSearchOpen(true);
+  };
 
   if (isPlaying) return null;
 

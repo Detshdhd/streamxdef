@@ -133,6 +133,9 @@ export default function DetailModal() {
   }, [showDetail]);
 
   useEffect(() => {
+    // Intentional reset when a different title opens — the synopsis expand
+    // state must never leak across items.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setShowFullOverview(false);
   }, [selectedItem?.id]);
 
@@ -448,7 +451,7 @@ export default function DetailModal() {
                           playEpisode(selectedSeason, ep.episode_number);
                         }}
                         className={`nfx-ep-row w-full text-left rounded-xl ${
-                          selectedEpisode === ep.episode_number && selectedSeason === selectedSeason
+                          selectedEpisode === ep.episode_number
                             ? 'bg-white/[0.08]'
                             : ''
                         }`}
