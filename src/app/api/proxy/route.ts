@@ -5,6 +5,11 @@ import { NextRequest, NextResponse } from 'next/server';
 // happen from different IPs, segments return 403/404.
 export const preferredRegion = 'iad1';
 
+// Streaming video segments through this function can legitimately take
+// longer than Vercel's 10s default — a killed function mid-segment is
+// exactly "the stream dies in the middle". 60s is the Hobby ceiling.
+export const maxDuration = 60;
+
 /**
  * /api/proxy
  * 

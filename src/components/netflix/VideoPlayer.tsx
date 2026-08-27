@@ -9,7 +9,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Hls from 'hls.js';
 import {
   ArrowLeft, Maximize, Minimize, Play, Pause,
-  SkipBack, SkipForward, Volume2, VolumeX, Volume1, AlertCircle, Subtitles, Settings2,
+  SkipBack, SkipForward, Volume2, VolumeX, Volume1, AlertCircle, Subtitles, Settings2, X as XIcon,
 } from 'lucide-react';
 import {
   useStore,
@@ -251,7 +251,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
         lowLatencyMode: false,
         // BIG BUFFER: keep up to 90s ahead (5 min max) so slow/hiccupy
         // connections keep playing — the player stores lots of upcoming video.
-        maxBufferLength: 24,
+        maxBufferLength: 30,
         maxMaxBufferLength: 90,
         maxBufferSize: 48 * 1000 * 1000,
         manifestLoadingTimeOut: 15000,
@@ -266,7 +266,10 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
         // It ramps UP when the connection is fast (1080p on 120Mbps) and
         // drops down on slow connections so the video never stalls.
         startLevel: -1,
-        abrEwmaDefaultEstimate: 1500000,
+        // Start from a FAST estimate: assuming 3.5Mbps makes the first
+        // segment 720p/1080p instead of 480p, so the video looks sharp
+        // immediately. Real EWMA takes over after a couple of segments.
+        abrEwmaDefaultEstimate: 3500000,
         capLevelToPlayerSize: true,
         maxBufferHole: 0.5,
         startFragPrefetch: true,
@@ -514,7 +517,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
 
       {loading && sources.length > 0 && (
         <div className="w-32 h-[3px] bg-white/10 rounded-full overflow-hidden">
-          <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
+          <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-[#0072D2] to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
         </div>
       )}
 
@@ -538,7 +541,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
         <div className="flex flex-col items-center">
           <h2 className="text-white text-xl font-bold tracking-tight mb-5 text-center px-6">{title}</h2>
           <div className="w-32 h-[3px] bg-white/10 rounded-full overflow-hidden">
-            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
+            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-[#0072D2] to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
           </div>
         </div>
       )}
@@ -903,7 +906,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
         lowLatencyMode: false,
         // BIG BUFFER: keep up to 90s ahead (5 min max) so slow/hiccupy
         // connections keep playing — the player stores lots of upcoming video.
-        maxBufferLength: 24,
+        maxBufferLength: 30,
         maxMaxBufferLength: 90,
         maxBufferSize: 48 * 1000 * 1000,
         manifestLoadingTimeOut: 15000,
@@ -917,7 +920,10 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
         // best quality the connection sustains — ramps UP to 1080p on fast
         // connections and drops down on slow ones so video never stalls.
         startLevel: -1,
-        abrEwmaDefaultEstimate: 1500000,
+        // Start from a FAST estimate: assuming 3.5Mbps makes the first
+        // segment 720p/1080p instead of 480p, so the video looks sharp
+        // immediately. Real EWMA takes over after a couple of segments.
+        abrEwmaDefaultEstimate: 3500000,
         capLevelToPlayerSize: true,
         maxBufferHole: 0.5,
         startFragPrefetch: true,
@@ -1485,7 +1491,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
       {loading && sources.length > 0 && (
         <div className="absolute inset-0 z-[5] flex items-center justify-center pointer-events-none">
           <div className="w-32 h-[3px] bg-white/10 rounded-full overflow-hidden">
-            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
+            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-[#0072D2] to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
           </div>
         </div>
       )}
@@ -1516,7 +1522,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
         <div className="absolute inset-0 z-[5] flex flex-col items-center justify-center bg-black">
           <h2 className="text-white text-2xl md:text-3xl font-bold tracking-tight mb-6 text-center px-6 hero-text-shimmer">{title}</h2>
           <div className="w-40 h-[3px] bg-white/10 rounded-full overflow-hidden">
-            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
+            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-[#0072D2] to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
           </div>
         </div>
       )}
@@ -1568,7 +1574,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
             if (video) video.currentTime += 30;
             resetTimer();
           }}
-          className="absolute bottom-[140px] left-1/2 -translate-x-1/2 md:left-auto md:right-[280px] md:translate-x-0 z-[18] px-5 py-2.5 glass-heavy rounded-full text-white text-sm font-semibold hover:bg-white/20 transition-all pointer-events-auto shadow-lg"
+          className="absolute bottom-[140px] left-1/2 -translate-x-1/2 md:left-auto md:right-[280px] md:translate-x-0 z-[18] px-6 py-2.5 rounded-md border border-white/70 bg-black/40 text-white text-sm font-semibold tracking-wide hover:bg-white hover:text-black transition-colors pointer-events-auto"
         >
           Saltar intro
         </button>
@@ -1613,30 +1619,41 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
         }`}
         style={{ transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }}
       >
-        {/* ─── TOP BAR — Cinematic gradient ─── */}
+        {/* ─── TOP BAR — Disney+ style: back+title left, close right ─── */}
         <div className="pointer-events-auto shrink-0" style={{ transform: showControls ? 'translateY(0)' : 'translateY(-20px)', transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }}>
           <div className="h-[140px] bg-gradient-to-b from-black/90 via-black/50 to-transparent" />
-          <div className="flex items-center gap-4 -mt-[72px] px-6 md:px-12">
-            {/* Back button — glass */}
+          <div className="flex items-center justify-between -mt-[72px] px-6 md:px-12">
+            <div className="flex items-center gap-4 min-w-0">
+              {/* Back button — plain icon, Disney-style */}
+              <button
+                onClick={(e) => { e.stopPropagation(); handleClose(); }}
+                className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
+                title="Volver"
+              >
+                <ArrowLeft className="w-6 h-6 text-white" />
+              </button>
+
+              {/* Title + episode badge */}
+              <div className="flex items-center gap-3 min-w-0">
+                <h2 className="text-white text-base md:text-lg font-semibold truncate max-w-[260px] md:max-w-[480px] tracking-tight hero-text-shadow">
+                  {title}
+                </h2>
+                {mediaType === 'tv' && season && episode && (
+                  <span className="shrink-0 text-white/60 text-xs font-medium">
+                    T{season}:E{episode}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Close — Disney signature top-right X */}
             <button
               onClick={(e) => { e.stopPropagation(); handleClose(); }}
-              className="nfx-circle-btn !w-11 !h-11"
-              title="Volver"
+              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
+              title="Cerrar"
             >
-              <ArrowLeft className="w-5 h-5 text-white/80" />
+              <XIcon className="w-6 h-6 text-white" />
             </button>
-
-            {/* Title + episode badge */}
-            <div className="flex items-center gap-3 min-w-0">
-              <h2 className="text-white text-base md:text-lg font-semibold truncate max-w-[260px] md:max-w-[480px] tracking-tight hero-text-shadow">
-                {title}
-              </h2>
-              {mediaType === 'tv' && season && episode && (
-                <span className="nfx-glass-chip shrink-0 text-[#ff5a63]">
-                  T{season} · E{episode}
-                </span>
-              )}
-            </div>
           </div>
         </div>
 
@@ -1658,89 +1675,90 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
           {/* Cinematic bottom gradient */}
           <div className="h-[150px] bg-gradient-to-t from-black/95 via-black/60 to-transparent" />
 
-          {/* ─── PROGRESS BAR — Premium Netflix-style ─── */}
-          <div
-            ref={progressRef}
-            className="mx-6 md:mx-16 -mt-[110px] mb-5 relative group/progress cursor-pointer"
-            onClick={handleProgressClick}
-            onMouseMove={handleProgressHover}
-            onMouseLeave={handleProgressHoverEnd}
-          >
-            {/* Scrub preview vertical line */}
-            {hoverTime !== null && (
-              <div
-                className="absolute top-[-8px] bottom-[-8px] w-[1.5px] bg-white/20 pointer-events-none z-[2]"
-                style={{ left: `${hoverX}px` }}
-              />
-            )}
+          {/* ─── PROGRESS BAR — Disney+ style: blue fill, white knob, "Quedan Xm" ─── */}
+          <div className="flex items-center gap-4 mx-6 md:mx-16 -mt-[110px] mb-5">
+            <div
+              ref={progressRef}
+              className="flex-1 relative group/progress cursor-pointer"
+              onClick={handleProgressClick}
+              onMouseMove={handleProgressHover}
+              onMouseLeave={handleProgressHoverEnd}
+            >
+              {/* Scrub preview vertical line */}
+              {hoverTime !== null && (
+                <div
+                  className="absolute top-[-8px] bottom-[-8px] w-[1.5px] bg-white/25 pointer-events-none z-[2]"
+                  style={{ left: `${hoverX}px` }}
+                />
+              )}
 
-            {/* Track — 3px normally, 6px on hover */}
-            <div className="h-[3px] group-hover/progress:h-[6px] bg-white/[0.18] rounded-full cursor-pointer relative overflow-visible" style={{ transition: 'height 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }}>
-              {/* Buffered indicator — gradient */}
-              <div
-                className="absolute top-0 left-0 h-full rounded-full transition-all duration-200 bg-gradient-to-r from-white/[0.15] to-white/[0.25]"
-                style={{ width: duration ? `${(buffered / duration) * 100}%` : '0%' }}
-              />
+              {/* Track — 4px, thickens on hover */}
+              <div className="h-[4px] group-hover/progress:h-[7px] bg-white/[0.22] rounded-full cursor-pointer relative overflow-visible" style={{ transition: 'height 0.25s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+                {/* Buffered indicator */}
+                <div
+                  className="absolute top-0 left-0 h-full rounded-full transition-all duration-200 bg-white/[0.32]"
+                  style={{ width: duration ? `${(buffered / duration) * 100}%` : '0%' }}
+                />
 
-              {/* Progress glow trail — blurred red accent behind the fill */}
-              <div
-                className="absolute top-[-2px] left-0 h-[calc(100%+4px)] rounded-full bg-white/25 blur-[3px] transition-[width] duration-100"
-                style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}
-              />
-
-              {/* Progress fill — red gradient */}
-              <div
-                className="absolute top-0 left-0 h-full rounded-full bg-gradient-to-r from-white to-white/85 transition-[width] duration-100"
-                style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}
-              >
-                {/* Always-visible playhead — grows on hover with glow */}
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[10px] h-[10px] group-hover/progress:w-[16px] group-hover/progress:h-[16px] rounded-full bg-white shadow-lg shadow-black/50 border-2 border-white z-10" style={{ transition: 'width 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
-                {/* Playhead glow — subtle always, stronger on hover */}
-                <div className="absolute right-[-4px] top-1/2 -translate-y-1/2 w-4 h-4 group-hover/progress:w-8 group-hover/progress:h-8 rounded-full bg-white/25 group-hover/progress:bg-white/40 blur-md transition-all duration-300" />
+                {/* Progress fill — Disney brand blue */}
+                <div
+                  className="absolute top-0 left-0 h-full rounded-full bg-[#0072D2] transition-[width] duration-100"
+                  style={{ width: duration ? `${(currentTime / duration) * 100}%` : '0%' }}
+                >
+                  {/* White playhead — Disney signature knob */}
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[12px] h-[12px] group-hover/progress:w-[16px] group-hover/progress:h-[16px] rounded-full bg-white shadow-lg shadow-black/60 z-10" style={{ transition: 'width 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)' }} />
+                </div>
               </div>
+
+              {/* ─── TIME TOOLTIP on hover ─── */}
+              {hoverTime !== null && duration > 0 && (
+                <div
+                  className="absolute -top-14 pointer-events-none px-4 py-2 rounded-xl bg-black/90 backdrop-blur-2xl text-white/95 text-xs font-semibold tabular-nums border border-white/[0.12] shadow-2xl shadow-black/60"
+                  style={{
+                    left: `${hoverX}px`,
+                    transform: 'translateX(-50%)',
+
+                  }}
+                >
+                  {formatTime(hoverTime)}
+                </div>
+              )}
             </div>
 
-            {/* ─── TIME TOOLTIP on hover ─── */}
-            {hoverTime !== null && duration > 0 && (
-              <div
-                className="absolute -top-14 pointer-events-none px-4 py-2 rounded-xl bg-black/90 backdrop-blur-2xl text-white/95 text-xs font-semibold tabular-nums border border-white/[0.12] shadow-2xl shadow-black/60"
-                style={{
-                  left: `${hoverX}px`,
-                  transform: 'translateX(-50%)',
-                  
-                }}
-              >
-                {formatTime(hoverTime)}
-              </div>
+            {/* Remaining time — Disney shows "Xm left" at the bar's right end */}
+            {duration > 0 && (
+              <span className="shrink-0 text-white/60 text-xs md:text-[13px] font-medium tabular-nums whitespace-nowrap">
+                Quedan {formatTime(Math.max(0, duration - currentTime))}
+              </span>
             )}
           </div>
 
-          {/* ─── CONTROLS ROW ─── */}
+          {/* ─── CONTROLS ROW — Disney+ flat white icons ─── */}
           <div className="flex items-center justify-between px-6 md:px-12 pb-6 md:pb-7">
             {/* Left controls */}
             <div className="flex items-center gap-1 md:gap-2">
               {/* Play/Pause */}
-              <button onClick={togglePlay} className="nfx-circle-btn !w-11 !h-11 group/play">
+              <button onClick={togglePlay} className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors group/play">
                 {isPaused ? (
-                  <Play className="w-5 h-5 text-white fill-white group-hover/play:scale-110 transition-transform" />
+                  <Play className="w-6 h-6 text-white fill-white group-hover/play:scale-110 transition-transform" />
                 ) : (
-                  <Pause className="w-5 h-5 text-white fill-white group-hover/play:scale-110 transition-transform" />
+                  <Pause className="w-6 h-6 text-white fill-white group-hover/play:scale-110 transition-transform" />
                 )}
               </button>
 
               {/* Skip Back */}
-              <button onClick={() => seek(-10)} className="nfx-circle-btn !w-11 !h-11 group/sb">
+              <button onClick={() => seek(-10)} className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors group/sb">
                 <div className="relative">
-                  <SkipBack className="w-[18px] h-[18px] text-white/70 group-hover/sb:text-white transition-colors" />
-                  <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[8px] text-white/30 group-hover/sb:text-white/70 font-semibold">10</span>
+                  <SkipBack className="w-[20px] h-[20px] text-white group/sb:scale-110 transition-transform" />
+                  <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[8px] text-white/60 font-semibold">10</span>
                 </div>
               </button>
 
               {/* Skip Forward */}
-              <button onClick={() => seek(10)} className="nfx-circle-btn !w-11 !h-11 group/sf">
+              <button onClick={() => seek(10)} className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors group/sf">
                 <div className="relative">
-                  <SkipForward className="w-[18px] h-[18px] text-white/70 group-hover/sf:text-white transition-colors" />
-                  <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[8px] text-white/30 group-hover/sf:text-white/70 font-semibold">10</span>
+                  <SkipForward className="w-[20px] h-[20px] text-white group/sf:scale-110 transition-transform" />
+                  <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[8px] text-white/60 font-semibold">10</span>
                 </div>
               </button>
 
@@ -1750,13 +1768,13 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
                 onMouseEnter={() => setShowVolumeSlider(true)}
                 onMouseLeave={() => setShowVolumeSlider(false)}
               >
-                <button onClick={toggleMute} className="nfx-circle-btn !w-11 !h-11">
+                <button onClick={toggleMute} className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors">
                   {isMuted || volume === 0 ? (
-                    <VolumeX className="w-[18px] h-[18px] text-white/70" />
+                    <VolumeX className="w-[20px] h-[20px] text-white" />
                   ) : volume < 0.5 ? (
-                    <Volume1 className="w-[18px] h-[18px] text-white/70" />
+                    <Volume1 className="w-[20px] h-[20px] text-white" />
                   ) : (
-                    <Volume2 className="w-[18px] h-[18px] text-white/70" />
+                    <Volume2 className="w-[20px] h-[20px] text-white" />
                   )}
                 </button>
 
@@ -1772,7 +1790,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
                     className="h-full bg-white rounded-full relative"
                     style={{ width: `${(isMuted ? 0 : volume) * 100}%` }}
                   >
-                    <div className="absolute right-[-5px] top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg shadow-black/40 border-2 border-white transition-all group-hover/vol:w-3.5 group-hover/vol:h-3.5" />
+                    <div className="absolute right-[-5px] top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg shadow-black/40 transition-all group-hover/vol:w-3.5 group-hover/vol:h-3.5" />
                   </div>
                 </div>
               </div>
@@ -1930,12 +1948,12 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
               {/* Fullscreen */}
               <button
                 onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
-                className="nfx-circle-btn !w-11 !h-11 group/fs"
+                className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors group/fs"
               >
                 {isFullscreen ? (
-                  <Minimize className="w-[18px] h-[18px] text-white/70 group-hover/fs:text-white transition-colors" />
+                  <Minimize className="w-[20px] h-[20px] text-white group-hover/fs:scale-110 transition-transform" />
                 ) : (
-                  <Maximize className="w-[18px] h-[18px] text-white/70 group-hover/fs:text-white transition-colors" />
+                  <Maximize className="w-[20px] h-[20px] text-white group-hover/fs:scale-110 transition-transform" />
                 )}
               </button>
             </div>
@@ -2180,7 +2198,7 @@ function BlobPlayer({ blobUrl, title }: { blobUrl: string; title: string }) {
         <div className="flex flex-col items-center">
           <h2 className="text-white text-xl font-bold tracking-tight mb-5 text-center px-6 hero-text-shimmer">{title}</h2>
           <div className="w-32 h-[3px] bg-white/10 rounded-full overflow-hidden">
-            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
+            <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-[#0072D2] to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
           </div>
         </div>
         <button onClick={handleClose} className="absolute top-5 right-5 w-11 h-11 rounded-full bg-white/[0.07] backdrop-blur-xl flex items-center justify-center z-10 hover:bg-white/[0.15] transition-all duration-300 border border-white/[0.08] shadow-lg shadow-black/40">
@@ -2395,7 +2413,7 @@ export default function VideoPlayer() {
       <div className="fixed inset-0 z-[2000] bg-black flex flex-col items-center justify-center">
         <h2 className="text-white text-2xl md:text-3xl font-bold tracking-tight mb-6 text-center px-6 hero-text-shimmer">{playerTitle}</h2>
         <div className="w-40 h-[3px] bg-white/10 rounded-full overflow-hidden">
-          <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-white to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
+          <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-[#0072D2] to-transparent rounded-full" style={{ animation: 'shimmerBar 1.5s ease-in-out infinite' }} />
         </div>
       </div>
     );
