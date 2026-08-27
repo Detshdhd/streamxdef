@@ -304,9 +304,20 @@ export async function GET(request: NextRequest) {
   const headers = getHeadersForUrl(url);
 
   try {
-    // Direct fetch — no retry wrapper for speed (segments are short-lived;
-    // hls.js retries naturally on failure).
-    const response = await fetchUpstream(url, headers);
+    // Transient upstream failures (Vidrock's Cloudflare worker returns
+    // bursts of 502 mid-stream) are retried HERE with a tiny backoff so
+    // hls.js never sees the blip — each client-side retry is a full
+    // browser→Vercel→CDN round trip and freezes playback for seconds.
+    const RETRYABLE = new Set([429, 502, 503, 504]);
+    const isPlaylist = url.includes('.m3u8');
+    const backoffs = isPlaylist ? [200] : [250, 650];
+
+    let response = await fetchUpstream(url, headers);
+    for (const delay of backoffs) {
+      if (!RETRYABLE.has(response.status)) break;
+      await new Promise((r) => setTimeout(r, delay));
+      response = await fetchUpstream(url, headers);
+    }
 
     if (!response.ok) {
       return NextResponse.json(
