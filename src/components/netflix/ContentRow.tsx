@@ -45,24 +45,12 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
     if (!el) return;
     const key = `${item.id}-${mediaType}`;
     if (hoveredPrefetched.has(key)) return;
-    hoveredPrefetched.add(key);
-    const params = new URLSearchParams({ id: String(item.id), type: mediaType, prefetch: 'true' });
-    fetch(`/api/source?${params}`).catch(() => {});
-  }, [item.id, mediaType]);
-
-  // IntersectionObserver: fire prefetch when the card scrolls into view.
-  useEffect(() => {
-    const el = cardRef.current;
-    if (!el) return;
-    const key = `${item.id}-${mediaType}`;
-    if (hoveredPrefetched.has(key)) return;
     const obs = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting) {
-        hoveredPrefetched.add(key);
-        const params = new URLSearchParams({ id: String(item.id), type: mediaType, prefetch: 'true' });
-        fetch(`/api/source?${params}`).catch(() => {});
-        obs.disconnect();
-      }
+      if (!entries[0]?.isIntersecting) return;
+      hoveredPrefetched.add(key);
+      const params = new URLSearchParams({ id: String(item.id), type: mediaType, prefetch: 'true' });
+      fetch(`/api/source?${params}`).catch(() => {});
+      obs.disconnect();
     }, { rootMargin: '200px' });
     obs.observe(el);
     return () => obs.disconnect();
