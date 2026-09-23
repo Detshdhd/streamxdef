@@ -846,7 +846,10 @@ async function prefetchMasters(sources: ResolvedSource[]): Promise<void> {
     const batch = sources.slice(i, i + MAX_CONCURRENT);
     await Promise.all(batch.map(async (src) => {
       try {
-        const masterUrl = `/api/proxy?url=${encodeURIComponent(src.url)}`;
+        // ?prefetch=true tells the proxy to use a shorter header timeout
+        // (5s vs 10s) — the request is fire-and-forget and a slow CDN
+        // that takes >5s to respond is unlikely to serve a usable master.
+        const masterUrl = `/api/proxy?url=${encodeURIComponent(src.url)}&prefetch=true`;
         const masterRes = await fetch(masterUrl, {
           headers: { 'User-Agent': UA, 'Accept': '*/*' },
           redirect: 'follow',
@@ -864,7 +867,7 @@ async function prefetchMasters(sources: ResolvedSource[]): Promise<void> {
         }
         // Prefetch first 3 segments through the proxy (cached 24h)
         await Promise.all(segmentUrls.map((segUrl) =>
-          fetch(`/api/proxy?url=${encodeURIComponent(segUrl)}`, {
+          fetch(`/api/proxy?url=${encodeURIComponent(segUrl)}&prefetch=true`, {
             headers: { 'User-Agent': UA, 'Accept': '*/*' },
             redirect: 'follow',
           }).catch(() => {})
@@ -912,9 +915,13 @@ export async function GET(request: NextRequest) {
 
   const cachedOrInflight = inFlightSources.get(cacheKey);
   const startedAt = Date.now();
+  // When the client asked for prefetch, give the background scrape more
+  // time — it is fire-and-forget and the response is already ready, so a
+  // longer timeout only costs cache freshness, not user-facing latency.
+  const resolveTimeout = searchParams.get('prefetch') === 'true' ? 15000 : 8000;
   const resolveSources = cachedOrInflight || (async () => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), resolveTimeout);
     try {
       const [vidrockSources, vimeusSources] = await Promise.all([
         fetchVidrockSources(parseInt(tmdbId, 10), type, season || undefined, episode || undefined, controller.signal).catch(() => []),

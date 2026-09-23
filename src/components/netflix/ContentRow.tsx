@@ -5,9 +5,9 @@
   import OptimizedImage from '@/components/OptimizedImage';
   import { useStore, type MediaItem } from '@/store/useStore';
 
-  // In-memory set of titles already prefetched on hover — avoids hammering
-  // the API while the user flicks the mouse across the shelf.
-  const hoveredPrefetched = new Set<string>();
+  // In-memory set of titles already prefetched — avoids hammering the API
+  // while the user flicks the mouse / scrolls across the shelf.
+  const prefetchedSet = new Set<string>();
 
 interface ContentRowProps {
   title: string;
@@ -26,7 +26,7 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
   const handleCardClick = useStore((s) => s.handleCardClick);
   const toggleMyList = useStore((s) => s.toggleMyList);
   const myList = useStore((s) => s.myList);
-  const cardRef = useRef<HTMLButtonElement>(null);
+  const cardRef = useRef<HTMLElement>(null);
   const [imgError, setImgError] = useState(false);
   const [imagePath, setImagePath] = useState(item.poster_path || item.backdrop_path);
   const [isHovered, setIsHovered] = useState(false);
@@ -44,10 +44,10 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
     const el = cardRef.current;
     if (!el) return;
     const key = `${item.id}-${mediaType}`;
-    if (hoveredPrefetched.has(key)) return;
+    if (prefetchedSet.has(key)) return;
     const obs = new IntersectionObserver((entries) => {
       if (!entries[0]?.isIntersecting) return;
-      hoveredPrefetched.add(key);
+      prefetchedSet.add(key);
       const params = new URLSearchParams({ id: String(item.id), type: mediaType, prefetch: 'true' });
       fetch(`/api/source?${params}`).catch(() => {});
       obs.disconnect();

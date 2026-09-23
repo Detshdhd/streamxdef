@@ -269,12 +269,16 @@ function getHeadersForUrl(url: string): Record<string, string> {
  * which forced the player down to 720p/480p.
  */
 const HEADER_TIMEOUT = 10000;
+// When the caller is priming the edge cache (prefetch), a shorter header
+// timeout is fine: the request is fire-and-forget and a slow CDN that
+// takes >5s to respond is unlikely to serve a usable master anyway.
+const PREFETCH_HEADER_TIMEOUT = 5000;
 
-async function fetchUpstream(url: string, headers: Record<string, string>): Promise<Response> {
+async function fetchUpstream(url: string, headers: Record<string, string>, prefetch = false): Promise<Response> {
   const controller = new AbortController();
 
   return await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => controller.abort(), HEADER_TIMEOUT);
+    const timer = setTimeout(() => controller.abort(), prefetch ? PREFETCH_HEADER_TIMEOUT : HEADER_TIMEOUT);
 
     fetch(url, {
       headers,
@@ -302,6 +306,10 @@ export async function GET(request: NextRequest) {
   }
 
   const headers = getHeadersForUrl(url);
+  // ?prefetch=true tells fetchUpstream to use a shorter header timeout
+  // (5s vs 10s) — the request is fire-and-forget and a slow CDN that
+  // takes >5s to respond is unlikely to serve a usable master anyway.
+  const prefetch = searchParams.get('prefetch') === 'true';
 
   try {
     // Transient upstream failures (Vidrock's Cloudflare worker returns
@@ -312,11 +320,11 @@ export async function GET(request: NextRequest) {
     const isPlaylist = url.includes('.m3u8');
     const backoffs = isPlaylist ? [200] : [250, 650];
 
-    let response = await fetchUpstream(url, headers);
+    let response = await fetchUpstream(url, headers, prefetch);
     for (const delay of backoffs) {
       if (!RETRYABLE.has(response.status)) break;
       await new Promise((r) => setTimeout(r, delay));
-      response = await fetchUpstream(url, headers);
+      response = await fetchUpstream(url, headers, prefetch);
     }
 
     if (!response.ok) {
