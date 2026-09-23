@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { X, Play, Plus, ThumbsUp, ChevronDown, ChevronUp, Download, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import OptimizedImage from '@/components/OptimizedImage';
 import { useStore, type MediaDetail, type Episode } from '@/store/useStore';
 import { getCachedSources, setCachedSources, sourceCacheKey } from '@/lib/sourceCache';
 import { sourceLanguageKey } from '@/lib/sourceLanguage';
@@ -240,13 +241,14 @@ export default function DetailModal() {
           {/* Hero backdrop — 16:9 */}
           <div className="relative w-full aspect-[16/9] bg-[#1f1f1f] overflow-hidden shrink-0">
             {backdrop ? (
-              <img
+              <OptimizedImage
                 src={`https://image.tmdb.org/t/p/w780${backdrop}`}
                 srcSet={`https://image.tmdb.org/t/p/w780${backdrop} 780w, https://image.tmdb.org/t/p/w1280${backdrop} 1280w`}
                 sizes="(max-width: 640px) 100vw, min(850px, 100vw)"
                 alt=""
                 className="w-full h-full object-cover"
                 decoding="async"
+                lowWidth={342}
               />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-[#1d1d20] to-[#101012]" />

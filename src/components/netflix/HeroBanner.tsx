@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Play, Info } from 'lucide-react';
+import OptimizedImage from '@/components/OptimizedImage';
 import { useStore, type MediaItem } from '@/store/useStore';
 
 interface HeroBannerProps {
@@ -38,7 +39,7 @@ function FeaturedCard({ candidate, index }: { candidate: MediaItem; index: numbe
         aria-label={`Más información: ${title}`}
       >
         {imageUrl && !imageError ? (
-          <img
+          <OptimizedImage
             src={imageUrl}
             srcSet={imagePath ? (isPoster
               ? `https://image.tmdb.org/t/p/w185${imagePath} 185w, https://image.tmdb.org/t/p/w342${imagePath} 342w`

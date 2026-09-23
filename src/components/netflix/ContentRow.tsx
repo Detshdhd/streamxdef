@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Play, Heart } from 'lucide-react';
+import OptimizedImage from '@/components/OptimizedImage';
 import { useStore, type MediaItem } from '@/store/useStore';
 
 interface ContentRowProps {
@@ -21,7 +22,6 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
   const handleCardClick = useStore((s) => s.handleCardClick);
   const toggleMyList = useStore((s) => s.toggleMyList);
   const myList = useStore((s) => s.myList);
-  const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [imagePath, setImagePath] = useState(item.poster_path || item.backdrop_path);
   const [isHovered, setIsHovered] = useState(false);
@@ -33,7 +33,6 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
 
   const handleImageError = () => {
     if (imagePath === item.poster_path && item.backdrop_path) {
-      setImgLoaded(false);
       setImagePath(item.backdrop_path);
       return;
     }
@@ -82,18 +81,15 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
         tabIndex={0}
         onKeyDown={(e) => { if (e.key === 'Enter') handleCardClick(item); }}
       >
-        {!imgLoaded && <div className="absolute inset-0 skeleton-shimmer" />}
-        <img
+        <OptimizedImage
           src={artworkUrl}
           srcSet={artworkSrcSet}
           sizes="(max-width: 640px) 172px, (max-width: 900px) 190px, 224px"
           alt={title}
-          className="w-full h-full object-cover transition-opacity duration-300"
-          style={{ opacity: imgLoaded ? 1 : 0 }}
-          onLoad={() => setImgLoaded(true)}
-          onError={handleImageError}
+          className="w-full h-full object-cover"
           loading={index < 2 ? 'eager' : 'lazy'}
           decoding="async"
+          onError={handleImageError}
         />
 
         {/* Top-10 rank on the artwork (Apple: white on dark glass) */}
