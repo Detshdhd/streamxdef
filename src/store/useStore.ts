@@ -183,6 +183,8 @@ interface AppState {
 
   handleCardClick: (item: MediaItem) => void;
 
+  prefetchSourcesForItem: (item: MediaItem, season?: number, episode?: number) => void;
+
   setSearchQuery: (query: string) => void;
   setSearchOpen: (open: boolean) => void;
   setSearchResults: (results: MediaItem[]) => void;
