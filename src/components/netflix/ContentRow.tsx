@@ -26,6 +26,7 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
   const handleCardClick = useStore((s) => s.handleCardClick);
   const toggleMyList = useStore((s) => s.toggleMyList);
   const myList = useStore((s) => s.myList);
+  const cardRef = useRef<HTMLButtonElement>(null);
   const [imgError, setImgError] = useState(false);
   const [imagePath, setImagePath] = useState(item.poster_path || item.backdrop_path);
   const [isHovered, setIsHovered] = useState(false);
@@ -36,17 +37,36 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
 
   const cardWidth = 'w-[172px] sm:w-[190px] md:w-[214px] lg:w-[224px]';
 
-  // Netflix-style: the moment the user hovers a card, prime the edge cache
-  // with the m3u8 master + first 3 segments so opening the detail modal
-  // (and pressing Play) is instant. Deduplicated per title.
+  // Netflix-style: prime the edge cache the moment the card enters the
+  // viewport (200px rootMargin so it fires before the user even hovers).
+  // Works on mobile where there is no hover event. Deduplicated per title.
   useEffect(() => {
-    if (!isHovered) return;
+    const el = cardRef.current;
+    if (!el) return;
     const key = `${item.id}-${mediaType}`;
     if (hoveredPrefetched.has(key)) return;
     hoveredPrefetched.add(key);
     const params = new URLSearchParams({ id: String(item.id), type: mediaType, prefetch: 'true' });
     fetch(`/api/source?${params}`).catch(() => {});
-  }, [isHovered, item.id, mediaType]);
+  }, [item.id, mediaType]);
+
+  // IntersectionObserver: fire prefetch when the card scrolls into view.
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const key = `${item.id}-${mediaType}`;
+    if (hoveredPrefetched.has(key)) return;
+    const obs = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) {
+        hoveredPrefetched.add(key);
+        const params = new URLSearchParams({ id: String(item.id), type: mediaType, prefetch: 'true' });
+        fetch(`/api/source?${params}`).catch(() => {});
+        obs.disconnect();
+      }
+    }, { rootMargin: '200px' });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [item.id, mediaType]);
 
   const handleImageError = () => {
     if (imagePath === item.poster_path && item.backdrop_path) {
@@ -73,6 +93,7 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
         onMouseLeave={() => setIsHovered(false)}
       >
         <button
+          ref={cardRef}
           type="button"
           className="nfx-card-img flex items-center justify-center cursor-pointer w-full"
           onClick={() => handleCardClick(item)}
@@ -87,6 +108,7 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
 
   return (
     <div
+      ref={cardRef}
       className={`${cardWidth} shrink-0 relative group`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
