@@ -163,6 +163,10 @@ export default function DetailModal() {
   // synopsis means pressing Reproducir starts playback from cache instantly.
   // For TV we prefetch the season's first episode (the default play action);
   // picking a different episode resolves at play time as before.
+  //
+  // ?prefetch=true also primes the edge cache with the m3u8 masters + first
+  // 3 segments, so the next viewer of this title gets instant playback
+  // (proxy caches playlists 1h, segments 24h).
   useEffect(() => {
     if (!showDetail || isPlaying || !selectedItem) return;
     const mediaType = selectedItem.media_type === 'tv' || selectedItem.name ? 'tv' : 'movie';
@@ -173,7 +177,7 @@ export default function DetailModal() {
     if (getCachedSources(key)) return;
 
     const controller = new AbortController();
-    const params = new URLSearchParams({ id: String(id), type: mediaType });
+    const params = new URLSearchParams({ id: String(id), type: mediaType, prefetch: 'true' });
     if (mediaType === 'tv') {
       params.set('s', String(season || 1));
       params.set('e', String(episode || 1));

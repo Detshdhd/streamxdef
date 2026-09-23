@@ -831,6 +831,49 @@ function pruneSourceCache() {
   }
 }
 
+/**
+ * Prefetch the m3u8 master + first 3 segments of every source through our
+ * proxy, so the edge cache is warm before the user presses Play. The proxy
+ * caches playlists for 1 hour and segments for 24 hours, so this one
+ * request primes the cache for ALL viewers of this title.
+ *
+ * Runs fire-and-forget: the client gets its sources immediately and the
+ * prefetch happens in the background.
+ */
+async function prefetchMasters(sources: ResolvedSource[]): Promise<void> {
+  const MAX_CONCURRENT = 4;
+  for (let i = 0; i < sources.length; i += MAX_CONCURRENT) {
+    const batch = sources.slice(i, i + MAX_CONCURRENT);
+    await Promise.all(batch.map(async (src) => {
+      try {
+        const masterUrl = `/api/proxy?url=${encodeURIComponent(src.url)}`;
+        const masterRes = await fetch(masterUrl, {
+          headers: { 'User-Agent': UA, 'Accept': '*/*' },
+          redirect: 'follow',
+        });
+        if (!masterRes.ok) return;
+        const text = await masterRes.text();
+        // Extract segment URLs (skip variant playlists and comments)
+        const segmentUrls: string[] = [];
+        for (const line of text.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          if (trimmed.includes('.m3u8')) continue;
+          segmentUrls.push(trimmed);
+          if (segmentUrls.length >= 3) break;
+        }
+        // Prefetch first 3 segments through the proxy (cached 24h)
+        await Promise.all(segmentUrls.map((segUrl) =>
+          fetch(`/api/proxy?url=${encodeURIComponent(segUrl)}`, {
+            headers: { 'User-Agent': UA, 'Accept': '*/*' },
+            redirect: 'follow',
+          }).catch(() => {})
+        ));
+      } catch { /* best-effort — never blocks the response */ }
+    }));
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    MAIN HANDLER — Combines VIDROCK + VIMEUS
    ═══════════════════════════════════════════════════════════════════ */
@@ -896,6 +939,13 @@ export async function GET(request: NextRequest) {
     allSources = await resolveSources;
   } finally {
     if (inFlightSources.get(cacheKey) === resolveSources) inFlightSources.delete(cacheKey);
+  }
+
+  // When the client asks for prefetch, prime the edge cache with the
+  // m3u8 masters + first 3 segments so the next viewer gets instant
+  // playback. Fire-and-forget — the response is already ready.
+  if (searchParams.get('prefetch') === 'true' && allSources.length > 0) {
+    prefetchMasters(allSources).catch(() => {});
   }
 
   const headers = allSources.length > 0

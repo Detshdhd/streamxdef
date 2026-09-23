@@ -1,9 +1,13 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Play, Heart } from 'lucide-react';
-import OptimizedImage from '@/components/OptimizedImage';
-import { useStore, type MediaItem } from '@/store/useStore';
+  import { useRef, useState, useEffect } from 'react';
+  import { ChevronLeft, ChevronRight, Play, Heart } from 'lucide-react';
+  import OptimizedImage from '@/components/OptimizedImage';
+  import { useStore, type MediaItem } from '@/store/useStore';
+
+  // In-memory set of titles already prefetched on hover — avoids hammering
+  // the API while the user flicks the mouse across the shelf.
+  const hoveredPrefetched = new Set<string>();
 
 interface ContentRowProps {
   title: string;
@@ -28,8 +32,21 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
 
   const isFav = myList.some(m => m.id === item.id);
   const title = item.title || item.name || '';
+  const mediaType = item.media_type === 'tv' || (!item.media_type && !!item.name) ? 'tv' : 'movie';
 
   const cardWidth = 'w-[172px] sm:w-[190px] md:w-[214px] lg:w-[224px]';
+
+  // Netflix-style: the moment the user hovers a card, prime the edge cache
+  // with the m3u8 master + first 3 segments so opening the detail modal
+  // (and pressing Play) is instant. Deduplicated per title.
+  useEffect(() => {
+    if (!isHovered) return;
+    const key = `${item.id}-${mediaType}`;
+    if (hoveredPrefetched.has(key)) return;
+    hoveredPrefetched.add(key);
+    const params = new URLSearchParams({ id: String(item.id), type: mediaType, prefetch: 'true' });
+    fetch(`/api/source?${params}`).catch(() => {});
+  }, [isHovered, item.id, mediaType]);
 
   const handleImageError = () => {
     if (imagePath === item.poster_path && item.backdrop_path) {
