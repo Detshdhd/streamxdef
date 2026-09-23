@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { getCachedSources, setCachedSources, sourceCacheKey } from '@/lib/sourceCache';
+import { sourceLanguageKey } from '@/lib/sourceLanguage';
 
 export interface MediaItem {
   id: number;
@@ -614,6 +616,40 @@ export const useStore = create<AppState>((set, get) => ({
       selectedSeason: 1,
       selectedEpisode: 1,
     });
+    // Fire-and-forget source prefetch at click time so the moment the
+    // user presses Reproducir the sources are already in cache.
+    get().prefetchSourcesForItem(item, 1, 1);
+  },
+
+  /**
+   * Prefetch sources for an item and store them in the wrapper cache.
+   * Called from handleCardClick (click) and from card onMouseEnter (hover).
+   * Best-effort: failures are silent — the player resolves on demand.
+   */
+  prefetchSourcesForItem: (item, season = 1, episode = 1) => {
+    const state = get();
+    const mediaType = item.media_type === 'tv' || item.name ? 'tv' : 'movie';
+    const id = item.id;
+    const key = sourceCacheKey(id, mediaType, season, episode);
+    if (getCachedSources(key)) return; // already cached
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({ id: String(id), type: mediaType });
+    if (mediaType === 'tv') {
+      params.set('s', String(season));
+      params.set('e', String(episode));
+    }
+    // Warm the serverless instance in parallel so the real /api/source
+    // that follows is fast (cold boot is the dominant cost on first play).
+    fetch(`/api/source?warm=1`, { signal: controller.signal }).catch(() => {});
+    fetch(`/api/source?${params}`, { signal: controller.signal })
+      .then((r) => r.json())
+      .then((data) => {
+        const allowed = ((data.sources || []) as { name: string; url: string; type: 'hls' | 'mp4'; quality?: string; language: string | null }[])
+          .filter((s) => sourceLanguageKey(s.language));
+        if (allowed.length > 0) setCachedSources(key, allowed);
+      })
+      .catch(() => { /* best-effort */ });
   },
 
   setSearchQuery: (query) => set({ searchQuery: query }),

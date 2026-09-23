@@ -376,7 +376,7 @@ export async function GET(request: NextRequest) {
           // NOTE: no stale-while-revalidate here — Vercel rewrites the whole
           // Cache-Control when it sees SWR on function responses (verified:
           // plain max-age survives, SWR gets normalized to max-age=0).
-          'Cache-Control': 'public, max-age=300',
+          'Cache-Control': 'public, max-age=3600',
           'Access-Control-Allow-Origin': '*',
         },
       });

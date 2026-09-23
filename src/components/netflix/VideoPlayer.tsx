@@ -1183,6 +1183,76 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
     if (video) video.playbackRate = playbackRate;
   }, [playbackRate, currentSource]);
 
+  // ─── PARALLEL SEGMENT PRELOADER (desktop) ───
+  // Same as MobilePlayer: fetch upcoming segments ahead of playback, up to
+  // 3 in parallel, filling the browser HTTP cache so hls.js gets instant
+  // cache hits instead of ~1s proxy round trips per segment. This is the
+  // single biggest lever for "the video plays instantly" — without it the
+  // first 10-20s of playback is a series of ~1s stalls while hls.js waits
+  // for each fragment through our proxy.
+  const desktopPrefetchedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    desktopPrefetchedRef.current = new Set();
+    const video = videoRef.current;
+    if (!video) return;
+
+    let active = true;
+    const tick = async () => {
+      if (!active || video.paused || video.ended) return;
+      const hls = hlsRef.current;
+      if (!hls || !hls.levels?.length) return;
+
+      // Only prefetch BEYOND what hls.js has buffered — no competing
+      let bufEnd = video.currentTime;
+      for (let i = 0; i < video.buffered.length; i++) {
+        if (video.buffered.start(i) <= video.currentTime && video.buffered.end(i) > bufEnd) {
+          bufEnd = video.buffered.end(i);
+        }
+      }
+      if (bufEnd - video.currentTime > 60) return;
+
+      const lvl = hls.loadLevel >= 0 ? hls.loadLevel : hls.currentLevel;
+      if (lvl == null || lvl < 0 || !hls.levels[lvl]?.url) return;
+      const plUrl = Array.isArray(hls.levels[lvl].url)
+        ? hls.levels[lvl].url[0]
+        : hls.levels[lvl].url as string;
+
+      try {
+        const res = await fetch(plUrl);
+        const text = await res.text();
+        if (!active) return;
+
+        const segs: { url: string; start: number }[] = [];
+        let t = 0;
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        for (let i = 0; i < lines.length; i++) {
+          const m = lines[i].match(/^#EXTINF:([\d.]+),?/);
+          if (m) {
+            const url = lines[i + 1];
+            if (url && !url.startsWith('#')) {
+              segs.push({ url, start: t });
+              t += parseFloat(m[1]);
+            }
+          }
+        }
+
+        const toFetch = segs
+          .filter(s => s.start >= bufEnd && s.start < bufEnd + 60)
+          .filter(s => !desktopPrefetchedRef.current.has(s.url))
+          .slice(0, 4);
+
+        for (const s of toFetch) {
+          desktopPrefetchedRef.current.add(s.url);
+          fetch(s.url).catch(() => {});
+        }
+      } catch { /* ignore */ }
+    };
+
+    const interval = setInterval(tick, 2000);
+    tick();
+    return () => { active = false; clearInterval(interval); };
+  }, [sources, currentSource]);
+
   // Close speed menu on outside click
   useEffect(() => {
     if (!speedMenuOpen) return;

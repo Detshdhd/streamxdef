@@ -871,7 +871,7 @@ export async function GET(request: NextRequest) {
   const startedAt = Date.now();
   const resolveSources = cachedOrInflight || (async () => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4200);
+    const timeout = setTimeout(() => controller.abort(), 8000);
     try {
       const [vidrockSources, vimeusSources] = await Promise.all([
         fetchVidrockSources(parseInt(tmdbId, 10), type, season || undefined, episode || undefined, controller.signal).catch(() => []),

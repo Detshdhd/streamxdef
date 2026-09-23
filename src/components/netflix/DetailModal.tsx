@@ -149,6 +149,15 @@ export default function DetailModal() {
     }
   }, [showDetail]);
 
+  // Warm-up the serverless instance the moment the modal opens — the
+  // /api/source handler is cold the first time per title and the warm
+  // ping boots it before the user presses Reproducir. The real source
+  // resolution runs in parallel below.
+  useEffect(() => {
+    if (!showDetail || isPlaying) return;
+    fetch('/api/source?warm=1', { method: 'GET' }).catch(() => {});
+  }, [showDetail, isPlaying]);
+
   // Prefetch the video SOURCES the moment the modal opens — resolving them
   // takes 1-5s of live scraping, and doing it while the user reads the
   // synopsis means pressing Reproducir starts playback from cache instantly.
