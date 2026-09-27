@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// EDGE: corre en el PoP más cercano al usuario (Bogotá/Miami) en vez de
+// iad1 — el upstream a TMDB baja de ~300-800ms a ~20-40ms, y con el
+// Cache-Control del response el CDN del PoP sirve los repeats en ~10-30ms
+// sin invocar nada. La opción fetch `next.revalidate` es Node-only: el
+// caché aquí lo maneja el CDN vía headers.
+export const runtime = 'edge';
+
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const API_KEY = process.env.TMDB_API_KEY!;
 const BEARER = process.env.TMDB_BEARER!;
@@ -16,7 +23,6 @@ async function tmdbFetch(path: string, params: Record<string, string> = {}, page
   }
   const res = await fetch(url.toString(), {
     headers: { 'Authorization': `Bearer ${BEARER}`, 'Content-Type': 'application/json' },
-    next: { revalidate: 300 },
     signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) throw new Error(`TMDB error: ${res.status}`);
@@ -450,6 +456,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data, {
       headers: {
         'Cache-Control': `public, s-maxage=${sMaxage}, stale-while-revalidate=${swr}`,
+        // Caché explícita en el CDN de Vercel (el PoP local del usuario).
+        'Vercel-CDN-Cache-Control': `public, s-maxage=${sMaxage}`,
       },
     });
   } catch (error) {

@@ -9,6 +9,48 @@
   // while the user flicks the mouse / scrolls across the shelf.
   const prefetchedSet = new Set<string>();
 
+  /* ── Cola de prefetch en idle ──
+     Resolver fuentes cuesta 2-4s de scraping server-side por título. Si
+     arrancan al entrar la primera fila al viewport (comportamiento
+     anterior), 6-10 peticiones de 3.8s saturan la conexión EXACTAMENTE
+     cuando el usuario espera el contenido de la página (medido: 23s de
+     tiempo de red acumulado durante la carga). Ahora: arrancan cuando el
+     navegador está idle tras el load, de UNO en uno con respiro, y se
+     saltan en conexiones lentas / save-data. */
+  const prefetchQueue: string[] = [];
+  let prefetchRunning = false;
+  let prefetchScheduled = false;
+
+  function connectionIsSlow(): boolean {
+    if (typeof navigator === 'undefined' || !('connection' in navigator)) return false;
+    const conn = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+    return !!conn && (!!conn.saveData || /^(slow-2g|2g)$/.test(conn.effectiveType || ''));
+  }
+
+  function pumpPrefetch(): void {
+    if (prefetchRunning) return;
+    if (connectionIsSlow()) { prefetchQueue.length = 0; return; }
+    const next = prefetchQueue.shift();
+    if (!next) { prefetchScheduled = false; return; }
+    prefetchRunning = true;
+    fetch(next).catch(() => {}).finally(() => {
+      prefetchRunning = false;
+      setTimeout(pumpPrefetch, 1200); // respiro entre resoluciones caras
+    });
+  }
+
+  function enqueuePrefetch(url: string): void {
+    prefetchQueue.push(url);
+    if (prefetchScheduled) return;
+    prefetchScheduled = true;
+    const start = () => pumpPrefetch();
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(start, { timeout: 6000 });
+    } else {
+      setTimeout(start, 3500);
+    }
+  }
+
 interface ContentRowProps {
   title: string;
   items: MediaItem[];
@@ -52,7 +94,7 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
       if (!entries[0]?.isIntersecting) return;
       prefetchedSet.add(key);
       const params = new URLSearchParams({ id: String(item.id), type: mediaType, prefetch: 'true' });
-      fetch(`/api/source?${params}`).catch(() => {});
+      enqueuePrefetch(`/api/source?${params}`);
       obs.disconnect();
     }, { rootMargin: '200px' });
     obs.observe(el);
