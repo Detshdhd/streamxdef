@@ -409,6 +409,16 @@ export async function GET(request: NextRequest) {
     };
     if (contentLength) respHeaders['Content-Length'] = contentLength;
 
+    if (prefetch) {
+      // El CDN de Vercel NO cachea respuestas en streaming (documentado:
+      // x-vercel-cache MISS en cada repetición). Las peticiones de
+      // precalentamiento bufferizan el cuerpo completo para volverse
+      // cacheables: quedan en el edge y el siguiente usuario arranca el
+      // video con HITs de ~20ms. El playback normal sigue en streaming
+      // (cero latencia extra para el que está viendo ahora).
+      const body = await response.arrayBuffer();
+      return new NextResponse(body, { headers: respHeaders });
+    }
     return new NextResponse(response.body, { headers: respHeaders });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'proxy error';
