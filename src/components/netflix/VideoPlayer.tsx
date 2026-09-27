@@ -15,6 +15,7 @@ import {
   useStore,
 } from '@/store/useStore';
 import { sourceLanguageKey } from '@/lib/sourceLanguage';
+import { useVideoUpscaler } from '@/lib/useVideoUpscaler';
 import { getCachedSources, setCachedSources, sourceCacheKey, type SourceInfo } from '@/lib/sourceCache';
 
 interface PlayerInnerProps {
@@ -261,15 +262,14 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
         fragLoadingTimeOut: 15000,
         fragLoadingMaxRetry: 6,
         fragLoadingRetryDelay: 500,
-        // ADAPTIVE QUALITY: startLevel -1 lets hls.js measure real bandwidth
-        // and pick the best quality the connection can actually sustain.
-        // It ramps UP when the connection is fast (1080p on 120Mbps) and
-        // drops down on slow connections so the video never stalls.
-        startLevel: -1,
-        // Start from a FAST estimate: assuming 3.5Mbps makes the first
-        // segment 720p/1080p instead of 480p, so the video looks sharp
-        // immediately. Real EWMA takes over after a couple of segments.
-        abrEwmaDefaultEstimate: 3500000,
+        // FAST START (Netflix-style): arranca en la calidad más baja para
+        // tener primer frame en ~1s y rampa rápida hacia arriba. La calidad
+        // baja del arranque no se ve peor porque el upscaler GPU del player
+        // la reescala con nitidez. abrBandWidthUpFactor 1.7 acelera la subida
+        // (1080p en ~2-3 segmentos con conexión rápida; cae sola en lenta).
+        startLevel: 0,
+        abrEwmaDefaultEstimate: 1000000,
+        abrBandWidthUpFactor: 1.7,
         capLevelToPlayerSize: true,
         maxBufferHole: 0.5,
         startFragPrefetch: true,
@@ -677,6 +677,22 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const qualityMenuRef = useRef<HTMLDivElement>(null);
 
+  // ─── Real-time GPU upscaler (mejora de imagen) ───
+  // ON por defecto; apagable desde el menú de calidad y persistido. La
+  // guarda de rendimiento del hook puede auto-apagarlo en GPUs lentas.
+  const [upscaleOn, setUpscaleOn] = useState(true);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('streamx:upscale');
+      if (saved !== null) setUpscaleOn(saved !== '0');
+    } catch { /* private mode */ }
+  }, []);
+  const toggleUpscale = (on: boolean) => {
+    setUpscaleOn(on);
+    try { localStorage.setItem('streamx:upscale', on ? '1' : '0'); } catch { /* noop */ }
+  };
+  const videoUpscaler = useVideoUpscaler(videoRef, upscaleOn);
+
   // Close quality menu on outside click
   useEffect(() => {
     if (!qualityMenuOpen) return;
@@ -916,14 +932,14 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
         fragLoadingTimeOut: 15000,
         fragLoadingMaxRetry: 6,
         fragLoadingRetryDelay: 500,
-        // ADAPTIVE QUALITY: hls.js measures real bandwidth and picks the
-        // best quality the connection sustains — ramps UP to 1080p on fast
-        // connections and drops down on slow ones so video never stalls.
-        startLevel: -1,
-        // Start from a FAST estimate: assuming 3.5Mbps makes the first
-        // segment 720p/1080p instead of 480p, so the video looks sharp
-        // immediately. Real EWMA takes over after a couple of segments.
-        abrEwmaDefaultEstimate: 3500000,
+        // FAST START (Netflix-style): arranca en la calidad más baja para
+        // tener primer frame en ~1s y rampa rápida hacia arriba. La calidad
+        // baja del arranque no se ve peor porque el upscaler GPU del player
+        // la reescala con nitidez. abrBandWidthUpFactor 1.7 acelera la subida
+        // (1080p en ~2-3 segmentos con conexión rápida; cae sola en lenta).
+        startLevel: 0,
+        abrEwmaDefaultEstimate: 1000000,
+        abrBandWidthUpFactor: 1.7,
         capLevelToPlayerSize: true,
         maxBufferHole: 0.5,
         startFragPrefetch: true,
@@ -1551,10 +1567,21 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
       <video
         ref={videoRef}
         className="absolute inset-0 w-full h-full object-contain"
+        style={{ opacity: videoUpscaler.engaged ? 0 : 1, transition: 'opacity 0.25s ease' }}
         playsInline
         poster={posterUrl}
         onClick={togglePlay}
         onDoubleClick={toggleFullscreen}
+      />
+
+      {/* ─── GPU UPSCALER — reemplaza visualmente al <video> mientras el
+          stream está por debajo de la pantalla (rampa ABR, streams 480p/720p
+          en ventana grande). Audio y controles siguen en el <video>. ─── */}
+      <canvas
+        ref={videoUpscaler.canvasRef}
+        className="absolute inset-0 w-full h-full pointer-events-none"
+        style={{ opacity: videoUpscaler.engaged ? 1 : 0, transition: 'opacity 0.25s ease' }}
+        aria-hidden="true"
       />
 
       {/* ─── BUFFERING — subtle shimmer bar, no spinner ─── */}
@@ -1961,6 +1988,17 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
                           {q.label}
                         </button>
                       ))}
+                      <div className="border-t border-white/[0.08] mt-1">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleUpscale(!upscaleOn); }}
+                          className="w-full text-left px-4 py-3 text-sm flex items-center justify-between transition-all text-white/45 hover:bg-white/[0.04] hover:text-white/85"
+                        >
+                          <span>Mejora de imagen <span className="text-white/30 text-xs">(GPU)</span></span>
+                          <span className={videoUpscaler.autoDisabled ? 'text-white/25 text-xs' : upscaleOn ? 'text-white font-medium text-xs' : 'text-white/30 text-xs'}>
+                            {videoUpscaler.autoDisabled ? 'Auto OFF' : upscaleOn ? 'ON' : 'OFF'}
+                          </span>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

@@ -840,16 +840,17 @@ function pruneSourceCache() {
  * Runs fire-and-forget: the client gets its sources immediately and the
  * prefetch happens in the background.
  */
-async function prefetchMasters(sources: ResolvedSource[]): Promise<void> {
+async function prefetchMasters(sources: ResolvedSource[], origin: string): Promise<void> {
   const MAX_CONCURRENT = 4;
   for (let i = 0; i < sources.length; i += MAX_CONCURRENT) {
     const batch = sources.slice(i, i + MAX_CONCURRENT);
     await Promise.all(batch.map(async (src) => {
       try {
-        // ?prefetch=true tells the proxy to use a shorter header timeout
-        // (5s vs 10s) — the request is fire-and-forget and a slow CDN
-        // that takes >5s to respond is unlikely to serve a usable master.
-        const masterUrl = `/api/proxy?url=${encodeURIComponent(src.url)}&prefetch=true`;
+        // fetch() de Node NO acepta URLs relativas — la versión anterior
+        // pasaba '/api/proxy?...' y lanzaba TypeError silencioso, así que
+        // TODO el precalentamiento del edge cache era placebo. Ahora se
+        // construye la URL absoluta con el origen del request entrante.
+        const masterUrl = `${origin}/api/proxy?url=${encodeURIComponent(src.url)}&prefetch=true`;
         const masterRes = await fetch(masterUrl, {
           headers: { 'User-Agent': UA, 'Accept': '*/*' },
           redirect: 'follow',
@@ -867,7 +868,7 @@ async function prefetchMasters(sources: ResolvedSource[]): Promise<void> {
         }
         // Prefetch first 3 segments through the proxy (cached 24h)
         await Promise.all(segmentUrls.map((segUrl) =>
-          fetch(`/api/proxy?url=${encodeURIComponent(segUrl)}&prefetch=true`, {
+          fetch(`${origin}/api/proxy?url=${encodeURIComponent(segUrl)}&prefetch=true`, {
             headers: { 'User-Agent': UA, 'Accept': '*/*' },
             redirect: 'follow',
           }).catch(() => {})
@@ -952,7 +953,7 @@ export async function GET(request: NextRequest) {
   // m3u8 masters + first 3 segments so the next viewer gets instant
   // playback. Fire-and-forget — the response is already ready.
   if (searchParams.get('prefetch') === 'true' && allSources.length > 0) {
-    prefetchMasters(allSources).catch(() => {});
+    prefetchMasters(allSources, new URL(request.url).origin).catch(() => {});
   }
 
   const headers = allSources.length > 0

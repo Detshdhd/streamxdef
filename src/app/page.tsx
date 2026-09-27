@@ -6,6 +6,7 @@ import { Facebook, Instagram, Youtube, Play, Trash2, AlertCircle, CheckCircle, L
 import Navbar from '@/components/netflix/Navbar';
 import HeroBanner from '@/components/netflix/HeroBanner';
 import ContentRow from '@/components/netflix/ContentRow';
+import OptimizedImage from '@/components/OptimizedImage';
 import { useStore, type MediaItem, type ContinueWatchingItem, type DownloadItem } from '@/store/useStore';
 import { hasArtwork } from '@/lib/mediaArtwork';
 
@@ -209,7 +210,7 @@ function ViewAllGrid({ section, onClose }: {
             {items.map((item) => (
               <button key={`${item.id}-${item.media_type}`} type="button" onClick={() => handleCardClick(item)} className="text-left group">
                 <div className="nfx-card-img">
-                  <img
+                  <OptimizedImage
                     src={`https://image.tmdb.org/t/p/w342${item.poster_path}`}
                     srcSet={`https://image.tmdb.org/t/p/w185${item.poster_path} 185w, https://image.tmdb.org/t/p/w342${item.poster_path} 342w, https://image.tmdb.org/t/p/w500${item.poster_path} 500w`}
                     sizes="(max-width: 640px) 46vw, (max-width: 900px) 22vw, (max-width: 1200px) 18vw, 15vw"
@@ -330,7 +331,7 @@ function ContinueWatchingRow({ items }: { items: ContinueWatchingItem[] }) {
               <div className="nfx-card-img nfx-card-img-landscape relative">
                 <div className="absolute inset-0">
                   {img && (
-                    <img
+                    <OptimizedImage
                       src={img}
                       srcSet={cw.backdrop_path
                         ? `https://image.tmdb.org/t/p/w300${cw.backdrop_path} 300w, https://image.tmdb.org/t/p/w342${cw.backdrop_path} 342w, https://image.tmdb.org/t/p/w780${cw.backdrop_path} 780w`
@@ -340,6 +341,7 @@ function ContinueWatchingRow({ items }: { items: ContinueWatchingItem[] }) {
                       className="w-full h-full object-cover"
                       loading="lazy"
                       decoding="async"
+                      lowWidth={185}
                     />
                   )}
                 </div>

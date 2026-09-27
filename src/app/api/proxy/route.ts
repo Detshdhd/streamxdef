@@ -385,6 +385,10 @@ export async function GET(request: NextRequest) {
           // Cache-Control when it sees SWR on function responses (verified:
           // plain max-age survives, SWR gets normalized to max-age=0).
           'Cache-Control': 'public, max-age=3600',
+          // Caché EXPLÍCITA en el CDN de Vercel: cada master pedido por
+          // cualquier usuario se sirve desde el PoP en ~10-30ms en vez de
+          // relanzar la función contra el CDN del proveedor.
+          'Vercel-CDN-Cache-Control': 'public, max-age=3600',
           'Access-Control-Allow-Origin': '*',
         },
       });
@@ -396,6 +400,10 @@ export async function GET(request: NextRequest) {
     const respHeaders: Record<string, string> = {
       'Content-Type': isSegment ? 'video/mp2t' : (contentType || 'video/mp4'),
       'Cache-Control': 'public, max-age=86400',
+      // Segmentos en el edge de Vercel: el 2do usuario que reproduce la
+      // misma escena recibe cada segmento desde el PoP — streaming CDN de
+      // verdad en vez de una función serverless por fragmento.
+      'Vercel-CDN-Cache-Control': 'public, max-age=86400',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Expose-Headers': 'Content-Length',
     };

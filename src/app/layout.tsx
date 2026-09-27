@@ -27,7 +27,9 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://image.tmdb.org" />
+        {/* crossOrigin: las miniaturas se reescalan en canvas GPU, así que
+            TMDB debe responder con CORS — el preconnect también lo negocia. */}
+        <link rel="preconnect" href="https://image.tmdb.org" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://image.tmdb.org" />
       </head>
       <body>

@@ -26,7 +26,10 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
   const handleCardClick = useStore((s) => s.handleCardClick);
   const toggleMyList = useStore((s) => s.toggleMyList);
   const myList = useStore((s) => s.myList);
-  const cardRef = useRef<HTMLElement>(null);
+  // Dos refs tipadas: el card sin arte usa <button> y el normal <div>.
+  // El observer usa la que exista (solo una se renderiza por rama).
+  const cardRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
   const [imgError, setImgError] = useState(false);
   const [imagePath, setImagePath] = useState(item.poster_path || item.backdrop_path);
   const [isHovered, setIsHovered] = useState(false);
@@ -41,7 +44,7 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
   // viewport (200px rootMargin so it fires before the user even hovers).
   // Works on mobile where there is no hover event. Deduplicated per title.
   useEffect(() => {
-    const el = cardRef.current;
+    const el = cardRef.current ?? btnRef.current;
     if (!el) return;
     const key = `${item.id}-${mediaType}`;
     if (prefetchedSet.has(key)) return;
@@ -81,7 +84,7 @@ function ContentCard({ item, index, isTopTen }: { item: MediaItem; index: number
         onMouseLeave={() => setIsHovered(false)}
       >
         <button
-          ref={cardRef}
+          ref={btnRef}
           type="button"
           className="nfx-card-img flex items-center justify-center cursor-pointer w-full"
           onClick={() => handleCardClick(item)}
