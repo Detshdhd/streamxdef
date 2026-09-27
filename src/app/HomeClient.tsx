@@ -760,11 +760,22 @@ function DownloadsTab() {
 
 /* ═══════════════════════════════════════════════════════════════════
    MAIN HOME COMPONENT
-   Recibe `initialTrending` del server component (ISR): el hero y la
-   primera fila pintan CON el HTML — cero waterfall JS→API→render.
+   Recibe `initialData` del server component (ISR): trending + las
+   primeras filas del catálogo viajan DENTRO del HTML — el SSR pinta el
+   catálogo completo en el documento y el arranque no espera ni JS ni API.
    ═══════════════════════════════════════════════════════════════════ */
 
-export default function HomeClient({ initialTrending }: { initialTrending?: MediaItem[] }) {
+/** Mismo filtro que aplicaSectionData — extraído para el seed del SSR. */
+function filterCatalog(items: MediaItem[], requireMediaType = false): MediaItem[] {
+  return items.filter((item) =>
+    hasArtwork(item) &&
+    (item.vote_average || 0) >= MIN_RATING &&
+    (item.vote_count || 0) >= MIN_VOTE_COUNT &&
+    (!requireMediaType || item.media_type === 'movie' || item.media_type === 'tv')
+  );
+}
+
+export default function HomeClient({ initialData = {} }: { initialData?: Record<string, MediaItem[]> }) {
   const { activeTab, continueWatching, myList, isPlaying, downloads, hydrateMyList, noSourceIds } = useStore();
 
   // Hydrate myList and blacklist from localStorage after mount
@@ -772,8 +783,19 @@ export default function HomeClient({ initialTrending }: { initialTrending?: Medi
     hydrateMyList();
   }, [hydrateMyList]);
 
-  const [sections, setSections] = useState<ContentSection[]>([]);
-  const [trendingItems, setTrendingItems] = useState<MediaItem[]>([]);
+  // Seed del SSR: los tipos embebidos arrancan con data → el HTML inicial
+  // contiene las filas pintadas (activeTab no se persiste, siempre 'inicio'
+  // en el servidor — sin mismatch de hidratación).
+  const [sections, setSections] = useState<ContentSection[]>(() =>
+    HOME_SECTIONS.map((s, idx) => {
+      const seeded = initialData[s.type];
+      if (seeded && seeded.length > 0) return { ...s, data: filterCatalog(seeded), loading: false };
+      return { ...s, data: [], loading: idx < 5 };
+    })
+  );
+  const [trendingItems, setTrendingItems] = useState<MediaItem[]>(() =>
+    filterCatalog(initialData.trending || [], true)
+  );
   const [viewAllSection, setViewAllSection] = useState<{ title: string; type: string; filter: 'movie' | 'tv' | 'all' } | null>(null);
 
   // ── LAZY loading: only a few rows load on mount; the rest load as the
@@ -900,11 +922,11 @@ export default function HomeClient({ initialTrending }: { initialTrending?: Medi
       fetchedTypesRef.current.add(type);
       const finishFailed = () => fetchedTypesRef.current.delete(type);
 
-      // 0. Trending llega embebido en el HTML (server component ISR) —
-      // sin red, pintado en el primer render.
-      if (type === 'trending' && initialTrending && initialTrending.length > 0) {
-        writeCache(type, { results: initialTrending });
-        applySectionData(type, initialTrending);
+      // 0. Tipos embebidos en el HTML (server component ISR) — sin red.
+      const seeded = initialData[type];
+      if (seeded && seeded.length > 0) {
+        writeCache(type, { results: seeded });
+        applySectionData(type, seeded);
         return;
       }
 

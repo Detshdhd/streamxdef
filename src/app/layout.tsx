@@ -31,11 +31,6 @@ export default function RootLayout({
             TMDB debe responder con CORS — el preconnect también lo negocia. */}
         <link rel="preconnect" href="https://image.tmdb.org" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://image.tmdb.org" />
-        {/* Precarga las dos primeras filas tras el hero (que ya viaja
-            embebido en el HTML): arrancan al parsear el documento, en
-            paralelo con el JS, y el fetch del client las encuentra calientes. */}
-        <link rel="preload" as="fetch" href="/api/tmdb?type=top-rated" crossOrigin="anonymous" />
-        <link rel="preload" as="fetch" href="/api/tmdb?type=popular-tv" crossOrigin="anonymous" />
       </head>
       <body>
         {children}
