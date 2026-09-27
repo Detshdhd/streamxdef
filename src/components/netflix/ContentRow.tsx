@@ -43,11 +43,18 @@
     prefetchQueue.push(url);
     if (prefetchScheduled) return;
     prefetchScheduled = true;
-    const start = () => pumpPrefetch();
+    // Gate duro: nada de prefetch hasta que el documento terminó de cargar
+    // (load event) Y el hilo está idle, más 2s de gracia — el ancho de
+    // banda de los primeros segundos es 100% del contenido visible.
+    const startWhenReady = () => {
+      const go = () => setTimeout(pumpPrefetch, 2000);
+      if (document.readyState === 'complete') go();
+      else window.addEventListener('load', go, { once: true });
+    };
     if (typeof requestIdleCallback === 'function') {
-      requestIdleCallback(start, { timeout: 6000 });
+      requestIdleCallback(startWhenReady, { timeout: 8000 });
     } else {
-      setTimeout(start, 3500);
+      setTimeout(startWhenReady, 3500);
     }
   }
 
