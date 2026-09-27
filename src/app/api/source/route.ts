@@ -153,8 +153,13 @@ async function fetchVidrockSources(tmdbId: number, type: string, season?: string
       if (!serverData || !serverData.url || !serverData.type) continue;
 
       const decryptedUrl = decryptVidrockUrl(serverData.url);
-      if (!decryptedUrl) {
-        console.log(`[Vidrock] Failed to decrypt ${serverName}`);
+      // Vidrock cifra la cadena "Unavailable" cuando ese servidor no tiene
+      // stream — sin este filtro entraba a la lista como fuente válida y el
+      // player quemaba su timeout de 10s intentando /api/proxy?url=Unavailable
+      // antes de caer al siguiente servidor (arranque lento cuando hay un
+      // CDN caído).
+      if (!decryptedUrl || !/^https?:\/\//i.test(decryptedUrl)) {
+        console.log(`[Vidrock] ${serverName}: no stream (decrypted="${decryptedUrl?.substring(0, 20) || 'null'}")`);
         continue;
       }
 
