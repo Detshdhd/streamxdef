@@ -239,6 +239,11 @@ export class GpuUpscaler {
       if (sharpen > 0.01) {
         // 2a) Upscale → FBO intermedio al tamaño del rect.
         this.ensureFbo(target.w, target.h);
+        // ensureFbo deja el FBO-texture en la unidad activa; hay que volver
+        // a colgar la fuente o el draw lee y escribe la misma textura
+        // (GL_INVALID_OPERATION: feedback loop).
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.srcTex);
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
         gl.viewport(0, 0, target.w, target.h);
         this.drawPass(this.progUp, { uTexUnit: 0 }, 'full');
