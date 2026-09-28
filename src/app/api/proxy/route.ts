@@ -66,6 +66,35 @@ function isBlocked(url: string): boolean {
   }
 }
 
+// Vidrock CDN — vidrock.ru origin required.
+const VIDROCK_API = 'vidrock.ru';
+const VIDROCK_CDN_HOSTS = ['ngcorp', 'wanderer', 'silhouette', 'mechanism', 'lizer', 'jenks', 'genesis', 'vidvault'];
+
+function isVidrockCdnHost(hostname: string): boolean {
+  if (hostname === VIDROCK_API || hostname.endsWith('.' + VIDROCK_API)) return false; // el API SÍ exige su origin
+  return VIDROCK_CDN_HOSTS.some(d => hostname.includes(d));
+}
+
+/**
+ * Variante B de cabeceras para el retry: la firma vidrock.ru completa.
+ * El CDN alterna entre exigir y rechazar Origin/Referer — con las dos
+ * variantes el retry cubre ambos estados de ánimo.
+ */
+function vidrockRefererVariant(url: string, base: Record<string, string>): Record<string, string> {
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    if (h.endsWith('workers.dev') || isVidrockCdnHost(h) || h.includes('vidrock')) {
+      return {
+        'User-Agent': UA,
+        'Accept': '*/*',
+        'Referer': 'https://vidrock.ru/',
+        'Origin': 'https://vidrock.ru',
+      };
+    }
+  } catch { /* noop */ }
+  return base;
+}
+
 /**
  * Determine which headers to use based on the URL domain
  */
@@ -181,11 +210,11 @@ function getHeadersForUrl(url: string): Record<string, string> {
     // Vidrock CDN — Cloudflare Workers. Vidrock rotates the worker subdomain
     // (47qzoobg8k, bison-6d7, …), so match ANY *.workers.dev host and send the
     // vidrock.ru origin it requires. Confirmed: vidrock.ru origin → 200, generic → 404.
-    if (hostname.endsWith('workers.dev')) {
+    // 28-sep: el CDN bloquea Origin/Referer en algunos momentos — el retry
+    // de abajo alterna ambas variantes, así que aquí va la variante LIMPIA.
+    if (hostname.endsWith('workers.dev') || isVidrockCdnHost(hostname)) {
       return {
         'User-Agent': UA,
-        'Referer': 'https://vidrock.ru/',
-        'Origin': 'https://vidrock.ru',
         'Accept': '*/*',
       };
     }
@@ -316,15 +345,20 @@ export async function GET(request: NextRequest) {
     // bursts of 502 mid-stream) are retried HERE with a tiny backoff so
     // hls.js never sees the blip — each client-side retry is a full
     // browser→Vercel→CDN round trip and freezes playback for seconds.
-    const RETRYABLE = new Set([429, 502, 503, 504]);
+    // 403 entra en el set: el CDN de Vidrock alterna entre exigir y
+    // rechazar Origin/Referer, y cada reintento alterna la variante.
+    const RETRYABLE = new Set([403, 429, 502, 503, 504]);
     const isPlaylist = url.includes('.m3u8');
     const backoffs = isPlaylist ? [200] : [250, 650];
 
+    const headerVariants = [headers, vidrockRefererVariant(url, headers)];
     let response = await fetchUpstream(url, headers, prefetch);
+    let variant = 0;
     for (const delay of backoffs) {
       if (!RETRYABLE.has(response.status)) break;
       await new Promise((r) => setTimeout(r, delay));
-      response = await fetchUpstream(url, headers, prefetch);
+      variant++;
+      response = await fetchUpstream(url, headerVariants[variant % headerVariants.length], prefetch);
     }
 
     if (!response.ok) {
