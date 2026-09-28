@@ -119,16 +119,36 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
   const lastProgressSaveRef = useRef(0);
   const [subtitleUrl, setSubtitleUrl] = useState<string | null>(null);
   const subtitlesFetchedRef = useRef(false);
+  // Re-resolución fresca tras fuentes muertas (tokens de vida corta):
+  // un solo auto-retry; ignorePreload anula el seed del modal y freshResolve
+  // añade &fresh=1 para que el servidor re-resuelva tokens nuevos.
+  const ignorePreloadRef = useRef(false);
+  const freshResolveRef = useRef(false);
+  const freshRetryDoneRef = useRef(false);
+  const retryWithFreshSources = (): boolean => {
+    if (freshRetryDoneRef.current) return false;
+    freshRetryDoneRef.current = true;
+    try { sessionStorage.removeItem(sourceCacheKey(tmdbId, mediaType, season, episode)); } catch { /* noop */ }
+    ignorePreloadRef.current = true;
+    freshResolveRef.current = true;
+    setSources([]);
+    return true;
+  };
 
   // Fetch sources only when the wrapper did not resolve them already.
   useEffect(() => {
-    if (preloadedSources && preloadedSources.length > 0) return;
+    if (preloadedSources && preloadedSources.length > 0 && !ignorePreloadRef.current) return;
 
     let cancelled = false;
     const params = new URLSearchParams({ id: String(tmdbId), type: mediaType });
     if (mediaType === 'tv' && season && episode) {
       params.set('s', String(season));
       params.set('e', String(episode));
+    }
+    if (freshResolveRef.current) {
+      // Retry tras fuentes muertas: el servidor re-resuelve tokens nuevos.
+      params.set('fresh', '1');
+      freshResolveRef.current = false;
     }
 
     // Check client-side cache first — instant on repeat visits
@@ -149,14 +169,14 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
         if (allSources.length > 0) {
           setCachedSources(cacheKey, allSources);
           setSources(allSources);
-        } else {
+        } else if (!retryWithFreshSources()) {
           setError('No se pudo reproducir este contenido');
           setLoading(false);
           addToBlacklist(tmdbId);
         }
       })
       .catch(() => {
-        if (!cancelled) {
+        if (!cancelled && !retryWithFreshSources()) {
           setError('No se pudo cargar el contenido');
           setLoading(false);
           addToBlacklist(tmdbId);
@@ -198,7 +218,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
       const next = nextPlayableIndex(sourceIdx);
       if (next >= 0) {
         setSourceIdx(next);
-      } else {
+      } else if (!retryWithFreshSources()) {
         setError('Este contenido no está disponible ahora');
         setLoading(false);
         addToBlacklist(tmdbId);
@@ -212,7 +232,7 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
       const next = nextPlayableIndex(sourceIdx);
       if (next >= 0) {
         setSourceIdx(next);
-      } else {
+      } else if (!retryWithFreshSources()) {
         setError('Error al reproducir');
         setLoading(false);
         addToBlacklist(tmdbId);
@@ -668,6 +688,12 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
   const nextEpisodeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const speedMenuRef = useRef<HTMLDivElement>(null);
 
+  // Re-resolución fresca tras fuentes muertas (tokens de vida corta):
+  // ignorePreload anula el seed del modal; freshResolve añade &fresh=1 al
+  // fetch para que el servidor re-resuelva ignorando su caché.
+  const ignorePreloadRef = useRef(false);
+  const freshResolveRef = useRef(false);
+
   // ─── Quality selector state ───
   // Available quality levels from the HLS manifest + the currently selected
   // one (-1 = Auto, letting hls.js ABR adapt to the connection).
@@ -796,13 +822,18 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
 
   // FETCH SOURCES only when the wrapper did not resolve them already.
   useEffect(() => {
-    if (preloadedSources && preloadedSources.length > 0) return;
+    if (preloadedSources && preloadedSources.length > 0 && !ignorePreloadRef.current) return;
 
     let cancelled = false;
     const params = new URLSearchParams({ id: String(tmdbId), type: mediaType });
     if (mediaType === 'tv' && season && episode) {
       params.set('s', String(season));
       params.set('e', String(episode));
+    }
+    if (freshResolveRef.current) {
+      // Retry tras fuentes muertas: el servidor re-resuelve tokens nuevos.
+      params.set('fresh', '1');
+      freshResolveRef.current = false;
     }
 
     // Check client-side cache first
@@ -1439,13 +1470,19 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
     closePlayer();
   };
 
-  // ─── Retry handler — resets source index to re-attempt playback ───
+  // ─── Retry handler — re-resolves sources FRESH ───
+  // Las fuentes anteriores murieron (tokens de vida corta): limpiar la copia
+  // local, ignorar el preload del modal y pedir al servidor con fresh=1
+  // para que re-resuelva tokens nuevos. Sin esto el retry reusa lo muerto.
   const handleRetry = useCallback(() => {
+    try { sessionStorage.removeItem(sourceCacheKey(tmdbId, mediaType, season, episode)); } catch { /* noop */ }
+    ignorePreloadRef.current = true;
+    freshResolveRef.current = true;
+    setSources([]);
     prevSourceRef.current = -1;
-    setCurrentSource(0);
     setError('');
     setLoading(true);
-  }, []);
+  }, [tmdbId, mediaType, season, episode]);
 
   // ─── Shortcut hint helper (visual overlay only, no logic change) ───
   const showShortcutHint = useCallback((hint: string) => {

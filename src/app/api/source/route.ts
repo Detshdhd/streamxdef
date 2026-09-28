@@ -51,9 +51,11 @@ function requestSignal(parent: AbortSignal | undefined, timeoutMs: number): Abor
 }
 
 // In-memory source cache — avoids re-scraping Vimeus/Vidrock on every request.
+// TTL corto (3 min): las fuentes llevan tokens de acceso de vida corta —
+// con 10 min se servían tokens muertos y el play fallaba.
 const sourceCache = new Map<string, { sources: ResolvedSource[]; timestamp: number }>();
 const inFlightSources = new Map<string, Promise<ResolvedSource[]>>();
-const SOURCE_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+const SOURCE_CACHE_TTL = 3 * 60 * 1000; // 3 minutes
 
 /* ─── Circuit breaker de Vimeus ──────────────────────────────────────
    Medición en producción (27-sep): las 8 peticiones revisadas devolvieron
@@ -942,7 +944,8 @@ export async function GET(request: NextRequest) {
   // In-memory cache: source resolution is expensive (4-5s of live scraping).
   // Cache for 10 minutes so repeated plays / language switches are instant.
   const cacheKey = `${tmdbId}-${type}-${season || ''}-${episode || ''}`;
-  const cached = sourceCache.get(cacheKey);
+  const forceFresh = searchParams.get('fresh') === '1';
+  const cached = forceFresh ? undefined : sourceCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < SOURCE_CACHE_TTL) {
     console.log(`[Source] Cache HIT for ${cacheKey} (${cached.sources.length} sources)`);
     return NextResponse.json(
@@ -951,7 +954,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const cachedOrInflight = inFlightSources.get(cacheKey);
+  const cachedOrInflight = forceFresh ? undefined : inFlightSources.get(cacheKey);
   const startedAt = Date.now();
   // When the client asked for prefetch, give the background scrape more
   // time — it is fire-and-forget and the response is already ready, so a
@@ -1057,14 +1060,12 @@ export async function GET(request: NextRequest) {
     prefetchMasters(allSources, new URL(request.url).origin).catch(() => {});
   }
 
-  // Caché CDN por PoP: el mismo título pedido por cualquier usuario se
-  // resuelve en el edge (~20-30ms) sin invocar la función ni scrapear.
-  // Coincide con el TTL de la caché en memoria (10 min).
+  // ⚠️ SIN caché CDN en esta ruta: las fuentes llevan tokens de acceso de
+  // vida CORTA (minutos). Un s-maxage alto sirvió tokens muertos y rompió
+  // el play ("no carga nada", 28-sep). La frescura la da el race (115ms)
+  // y la caché en memoria corta de abajo; el CDN NO debe guardar esto.
   const headers: Record<string, string> = allSources.length > 0
-    ? {
-        'Cache-Control': 'public, s-maxage=600',
-        'Vercel-CDN-Cache-Control': 'public, s-maxage=600',
-      }
-    : { 'Cache-Control': 'no-store' };
+    ? { 'Cache-Control': 'private, no-store' }
+    : { 'Cache-Control': 'private, no-store' };
   return NextResponse.json({ sources: allSources }, { headers });
 }

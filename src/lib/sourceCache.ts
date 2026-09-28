@@ -9,9 +9,10 @@ export interface SourceInfo {
 }
 
 // Sources are expensive to resolve (1-5s of live scraping). Cache them in
-// sessionStorage for 10 minutes so re-opening a movie or switching language
-// is instant. Must match the server-side cache window in /api/source.
-const SOURCE_CACHE_TTL = 10 * 60 * 1000;
+// sessionStorage — pero con TTL CORTO: las fuentes llevan tokens de acceso
+// de vida corta (minutos); servirlos viejos rompe el play. Debe quedarse
+// por debajo del TTL del servidor (3 min).
+const SOURCE_CACHE_TTL = 3 * 60 * 1000;
 
 export function sourceCacheKey(tmdbId: number, mediaType: string, season?: number, episode?: number): string {
   return `src:${tmdbId}:${mediaType}:${season || ''}:${episode || ''}`;
