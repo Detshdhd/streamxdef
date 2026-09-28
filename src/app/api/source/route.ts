@@ -55,6 +55,38 @@ const sourceCache = new Map<string, { sources: ResolvedSource[]; timestamp: numb
 const inFlightSources = new Map<string, Promise<ResolvedSource[]>>();
 const SOURCE_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
+/* ─── Circuit breaker de Vimeus ──────────────────────────────────────
+   Medición en producción (27-sep): las 8 peticiones revisadas devolvieron
+   `vimeus=0` con "aborted due to timeout" — el proveedor Latino no responde
+   desde la red de Vercel, y `Promise.all` pagaba sus 3s en cada play para
+   acabar con cero fuentes. Este breaker lo salta tras 2 fallos seguidos y
+   lo reactiva solo cuando vuelve a responder. Estado por instancia (en
+   serverless puede reiniciarse: solo afecta el ahorro, nunca la corrección). */
+let vimeusFailures = 0;
+let vimeusTrippedUntil = 0;
+const VIMEUS_TRIP_THRESHOLD = 2;
+const VIMEUS_TRIP_COOLDOWN = 5 * 60 * 1000;
+
+const vimeusCircuit = {
+  isTripped(): boolean {
+    if (vimeusFailures < VIMEUS_TRIP_THRESHOLD) return false;
+    if (Date.now() >= vimeusTrippedUntil) {
+      // Cooldown vencido: medio abierta — se reintenta y se decide de nuevo.
+      vimeusFailures = 0;
+      return false;
+    }
+    return true;
+  },
+  recordFailure(): void {
+    vimeusFailures += 1;
+    if (vimeusFailures >= VIMEUS_TRIP_THRESHOLD) vimeusTrippedUntil = Date.now() + VIMEUS_TRIP_COOLDOWN;
+  },
+  recordSuccess(): void {
+    vimeusFailures = 0;
+    vimeusTrippedUntil = 0;
+  },
+};
+
 /* ═══════════════════════════════════════════════════════════════════
    VIDROCK — English m3u8 sources via API + AES-GCM decryption
    ═══════════════════════════════════════════════════════════════════ */
@@ -924,15 +956,78 @@ export async function GET(request: NextRequest) {
   // When the client asked for prefetch, give the background scrape more
   // time — it is fire-and-forget and the response is already ready, so a
   // longer timeout only costs cache freshness, not user-facing latency.
-  const resolveTimeout = searchParams.get('prefetch') === 'true' ? 15000 : 8000;
+  // El cliente ya no espera al proveedor lento (race en el resolver), así
+  // que 5s es holgado: si no hay fuentes en 5s no habrá.
+  const resolveTimeout = searchParams.get('prefetch') === 'true' ? 15000 : 5000;
   const resolveSources = cachedOrInflight || (async () => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), resolveTimeout);
+    const id = parseInt(tmdbId, 10);
+    let timerCleared = false;
+    const clearTimer = () => { if (!timerCleared) { timerCleared = true; clearTimeout(timeout); } };
+
     try {
-      const [vidrockSources, vimeusSources] = await Promise.all([
-        fetchVidrockSources(parseInt(tmdbId, 10), type, season || undefined, episode || undefined, controller.signal).catch(() => []),
-        fetchVimeusSources(parseInt(tmdbId, 10), type, season || undefined, episode || undefined, controller.signal).catch(() => []),
+      // ── CORTOCIRCUITO DE VIMEUS ──
+      // Medido en producción: vimeus=0 en el 100% de las peticiones
+      // ("aborted due to timeout") — el proveedor Latino no responde desde
+      // la red de Vercel, pero Promise.all pagaba su timeout de 3s en CADA
+      // play para nada. Tras 2 fallos seguidos se salta 5 minutos.
+      const vimeusSkipped = vimeusCircuit.isTripped();
+      const vidrockP = fetchVidrockSources(id, type, season || undefined, episode || undefined, controller.signal).catch(() => []);
+      const vimeusP = vimeusSkipped
+        ? Promise.resolve([] as ResolvedSource[])
+        : fetchVimeusSources(id, type, season || undefined, episode || undefined, controller.signal).catch(() => []);
+
+      if (vimeusSkipped) {
+        const vidrockSources = await vidrockP;
+        const allSources = combineAndSort([], vidrockSources);
+        console.log(`[Source] resolved ${cacheKey} in ${Date.now() - startedAt}ms (vimeus SKIPPED, vidrock=${vidrockSources.length}, total=${allSources.length})`);
+        if (allSources.length > 0) sourceCache.set(cacheKey, { sources: allSources, timestamp: Date.now() });
+        pruneSourceCache();
+        return allSources;
+      }
+
+      // ── CARRERA: el primer proveedor que entregue fuentes gana ──
+      // Vidrock responde en ~300-500ms; no pagamos el peaje del lento.
+      // El perdedor sigue en background para enriquecer la caché.
+      type Race = { src: ResolvedSource[]; who: 'vidrock' | 'vimeus' };
+      const first = await Promise.race<Race>([
+        vidrockP.then((src) => ({ src, who: 'vidrock' as const })),
+        vimeusP.then((src) => ({ src, who: 'vimeus' as const })),
       ]);
+
+      if (first.src.length > 0) {
+        const allSources = combineAndSort(first.who === 'vimeus' ? first.src : [], first.who === 'vidrock' ? first.src : []);
+        sourceCache.set(cacheKey, { sources: allSources, timestamp: Date.now() });
+        pruneSourceCache();
+
+        // El proveedor perdedor sigue trabajando; si trae fuentes extra,
+        // enriquece la caché para el próximo play (nunca para esta respuesta).
+        const otherP = first.who === 'vidrock' ? vimeusP : vidrockP;
+        otherP.then((other) => {
+          if (other.length > 0) {
+            vimeusCircuit.recordSuccess();
+            const merged = combineAndSort(
+              first.who === 'vimeus' ? first.src : other,
+              first.who === 'vidrock' ? first.src : other,
+            );
+            sourceCache.set(cacheKey, { sources: merged, timestamp: Date.now() });
+          } else if (first.who === 'vidrock') {
+            // Vimeus volvió vacío (típico: su timeout) → cuenta como fallo
+            // para que el breaker lo salte en los siguientes plays.
+            vimeusCircuit.recordFailure();
+          }
+        }).catch(() => {});
+        // NO limpiamos el timer: sigue armada la red de seguridad para el
+        // trabajo en background.
+        console.log(`[Source] resolved ${cacheKey} in ${Date.now() - startedAt}ms (RACE via ${first.who}, ${allSources.length} sources)`);
+        return allSources;
+      }
+
+      // Ambos llegaron vacíos (o el que ganó no tenía nada): esperar al otro.
+      const [vidrockSources, vimeusSources] = await Promise.all([vidrockP, vimeusP]);
+      if (vidrockSources.length === 0 && vimeusSources.length === 0) vimeusCircuit.recordFailure();
+      else vimeusCircuit.recordSuccess();
 
       const allSources = combineAndSort(vimeusSources, vidrockSources);
       console.log(`[Source] resolved ${cacheKey} in ${Date.now() - startedAt}ms (vimeus=${vimeusSources.length}, vidrock=${vidrockSources.length}, total=${allSources.length})`);
@@ -940,9 +1035,10 @@ export async function GET(request: NextRequest) {
         sourceCache.set(cacheKey, { sources: allSources, timestamp: Date.now() });
       }
       pruneSourceCache();
+      clearTimer();
       return allSources;
     } finally {
-      clearTimeout(timeout);
+      clearTimer();
     }
   })();
 
@@ -961,8 +1057,14 @@ export async function GET(request: NextRequest) {
     prefetchMasters(allSources, new URL(request.url).origin).catch(() => {});
   }
 
-  const headers = allSources.length > 0
-    ? { 'Cache-Control': 'public, s-maxage=600' }
+  // Caché CDN por PoP: el mismo título pedido por cualquier usuario se
+  // resuelve en el edge (~20-30ms) sin invocar la función ni scrapear.
+  // Coincide con el TTL de la caché en memoria (10 min).
+  const headers: Record<string, string> = allSources.length > 0
+    ? {
+        'Cache-Control': 'public, s-maxage=600',
+        'Vercel-CDN-Cache-Control': 'public, s-maxage=600',
+      }
     : { 'Cache-Control': 'no-store' };
   return NextResponse.json({ sources: allSources }, { headers });
 }
