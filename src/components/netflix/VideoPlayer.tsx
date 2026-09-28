@@ -2085,7 +2085,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
                           onClick={(e) => { e.stopPropagation(); toggleUpscale(!upscaleOn); }}
                           className="w-full text-left px-4 py-3 text-sm flex items-center justify-between transition-all text-white/45 hover:bg-white/[0.04] hover:text-white/85"
                         >
-                          <span>Mejora de imagen <span className="text-white/30 text-xs">(GPU)</span></span>
+                          <span>Remasterización IA <span className="text-white/30 text-xs">(deblock + HDR)</span></span>
                           <span className={videoUpscaler.autoDisabled ? 'text-white/25 text-xs' : upscaleOn ? 'text-white font-medium text-xs' : 'text-white/30 text-xs'}>
                             {videoUpscaler.autoDisabled ? 'Auto OFF' : upscaleOn ? 'ON' : 'OFF'}
                           </span>

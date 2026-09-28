@@ -1,20 +1,17 @@
 'use client';
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { GpuUpscaler } from '@/lib/upscale';
+import { GpuUpscaler, paramsFromScene, DEFAULT_REMASTER, type RemasterParams } from '@/lib/upscale';
 
-/** Fuerza del unsharp del video upscaled — CON tope de rango local en el
- *  shader, así que no hay halos posibles. Moderado: natural, no artificial. */
-const SHARPEN = 0.22;
-/** El upscale solo aporta cuando el stream queda al menos 15% por debajo. */
-const BENEFIT_SCALE = 1.15;
-/** Cap de canvas en píxeles dispositivo — no procesar más de 1080p-ish. */
-const MAX_CANVAS_W = 1920;
-const MAX_CANVAS_H = 1080;
 /** Presupuesto de frame: si el draw medio supera esto, apagamos. */
 const MAX_DRAW_MS = 8;
 /** Frames consecutivos malos antes del auto-apagado (~1s a 60fps). */
 const BAD_FRAME_LIMIT = 50;
+/** Frecuencia del análisis de escena (ms) que alimenta el grade. */
+const ANALYZE_EVERY_MS = 600;
+/** Cap de canvas en píxeles dispositivo. */
+const MAX_CANVAS_W = 1920;
+const MAX_CANVAS_H = 1080;
 
 export interface VideoUpscaler {
   canvasRef: RefObject<HTMLCanvasElement | null>;
@@ -25,19 +22,13 @@ export interface VideoUpscaler {
 }
 
 /**
- * Upscaler de video en tiempo real: cada frame del <video> se pasa por la
- * GPU (Catmull-Rom + unsharp) hacia un canvas superpuesto cuando el stream
- * actual está por debajo de la resolución de la pantalla — exactamente lo
- * que pasa mientras el ABR hace la rampa desde calidad baja, y con
- * streams que solo existen en 480p/720p reproducidos en ventana grande.
- * Es el par de "empezar en calidad baja para cargar rápido": el arranque
- * instantáneo no se ve peor porque la GPU lo reescala con nitidez.
- *
- * Guardas de seguridad:
- *  - Si el draw cuesta demasiado (GPU lenta), se auto-desactiva y el
- *    <video> nativo vuelve a verse — jamás rompemos la reproducción.
- *  - Solo se activa cuando hay beneficio real (scale > 1.15x).
- *  - Nunca toca el audio ni el elemento <video>: solo lo dibuja.
+ * Remasterización en tiempo real estilo procesador de TV (directiva del
+ * dueño: SIEMPRE activa): cada frame pasa por deblock → upscale dirigido
+ * por bordes → textura + remaster HDR-perceptual, con análisis de escena
+ * cada 600ms que ajusta lift/contraste/vibrance. Guardas:
+ *  - Si el draw cuesta demasiado (GPU lenta), auto-apagado y vuelve el
+ *    <video> nativo — jamás rompe la reproducción.
+ *  - El toggle del menú de calidad apaga todo el pipeline.
  */
 export function useVideoUpscaler(
   videoRef: RefObject<HTMLVideoElement | null>,
@@ -66,6 +57,8 @@ export function useVideoUpscaler(
     let badFrames = 0;
     let drawEma = 0;
     let engagedNow = false;
+    let params: RemasterParams = { ...DEFAULT_REMASTER };
+    let lastAnalyze = 0;
 
     const resizeCanvas = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -88,24 +81,24 @@ export function useVideoUpscaler(
       const vw = video.videoWidth;
       const vh = video.videoHeight;
       const scale = Math.min(cw / vw, ch / vh);
-
-      // ¿Hay beneficio? Fuera de él, el video nativo ya se ve 1:1.
-      if (scale < BENEFIT_SCALE) {
-        if (engagedNow) { engagedNow = false; setEngaged(false); }
-        return;
-      }
-
       const fw = Math.max(2, Math.round(vw * scale));
       const fh = Math.max(2, Math.round(vh * scale));
       const rect = { x: (cw - fw) / 2, y: (ch - fh) / 2, w: fw, h: fh };
 
+      // Análisis de escena cada ANALYZE_EVERY_MS → parámetros del grade.
+      const now = performance.now();
+      if (now - lastAnalyze > ANALYZE_EVERY_MS) {
+        lastAnalyze = now;
+        const stats = upscaler.analyze(video, vw, vh);
+        if (stats) params = paramsFromScene(stats);
+      }
+
       const t0 = performance.now();
-      const ok = upscaler.render(video, vw, vh, fw, fh, SHARPEN, rect);
+      const ok = upscaler.render(video, vw, vh, fw, fh, params, rect);
       const dt = performance.now() - t0;
 
       if (!ok) { setAutoDisabled(true); running = false; return; }
 
-      // Guarda de rendimiento: EMA del tiempo de draw.
       drawEma = drawEma === 0 ? dt : drawEma * 0.9 + dt * 0.1;
       if (dt > 14 || drawEma > MAX_DRAW_MS) badFrames += 1;
       else if (badFrames > 0) badFrames -= 1;
