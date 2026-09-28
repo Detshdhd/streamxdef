@@ -262,15 +262,14 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
         fragLoadingTimeOut: 15000,
         fragLoadingMaxRetry: 6,
         fragLoadingRetryDelay: 500,
-        // FAST START (Netflix-style): arranca en la calidad más baja para
-        // tener primer frame en ~1s y rampa rápida hacia arriba. La calidad
-        // baja del arranque no se ve peor porque el upscaler GPU del player
-        // la reescala con nitidez. abrBandWidthUpFactor 1.7 acelera la subida
-        // (1080p en ~2-3 segmentos con conexión rápida; cae sola en lenta).
-        startLevel: 0,
-        abrEwmaDefaultEstimate: 1000000,
-        abrBandWidthUpFactor: 1.7,
-        capLevelToPlayerSize: true,
+        // MÁXIMA CALIDAD SIEMPRE: ABR arranca asumiendo 20Mbps → elige el
+        // nivel más alto del manifest desde el primer frame (4K/1080p si
+        // existe). Sin cap por tamaño de player. Si la conexión real no da,
+        // ABR baja solo a mitad de reproducción — y el upscaler GPU mantiene
+        // nítida la imagen en esas caídas.
+        startLevel: -1,
+        abrEwmaDefaultEstimate: 20000000,
+        capLevelToPlayerSize: false,
         maxBufferHole: 0.5,
         startFragPrefetch: true,
         // Skip the bandwidth-probe fragment hls.js downloads before the
@@ -932,15 +931,14 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
         fragLoadingTimeOut: 15000,
         fragLoadingMaxRetry: 6,
         fragLoadingRetryDelay: 500,
-        // FAST START (Netflix-style): arranca en la calidad más baja para
-        // tener primer frame en ~1s y rampa rápida hacia arriba. La calidad
-        // baja del arranque no se ve peor porque el upscaler GPU del player
-        // la reescala con nitidez. abrBandWidthUpFactor 1.7 acelera la subida
-        // (1080p en ~2-3 segmentos con conexión rápida; cae sola en lenta).
-        startLevel: 0,
-        abrEwmaDefaultEstimate: 1000000,
-        abrBandWidthUpFactor: 1.7,
-        capLevelToPlayerSize: true,
+        // MÁXIMA CALIDAD SIEMPRE: ABR arranca asumiendo 20Mbps → elige el
+        // nivel más alto del manifest desde el primer frame (4K/1080p si
+        // existe). Sin cap por tamaño de player. Si la conexión real no da,
+        // ABR baja solo a mitad de reproducción — y el upscaler GPU mantiene
+        // nítida la imagen en esas caídas.
+        startLevel: -1,
+        abrEwmaDefaultEstimate: 20000000,
+        capLevelToPlayerSize: false,
         maxBufferHole: 0.5,
         startFragPrefetch: true,
         // Skip the bandwidth-probe fragment hls.js downloads before the
