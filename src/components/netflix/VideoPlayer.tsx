@@ -17,6 +17,7 @@ import {
 import { sourceLanguageKey } from '@/lib/sourceLanguage';
 import { useVideoUpscaler } from '@/lib/useVideoUpscaler';
 import { getCachedSources, setCachedSources, sourceCacheKey, type SourceInfo } from '@/lib/sourceCache';
+import { pickFirstAliveSource } from '@/lib/pickSource';
 
 interface PlayerInnerProps {
   tmdbId: number;
@@ -163,12 +164,19 @@ function MobilePlayer({ tmdbId, mediaType, season, episode, title, preloadedSour
 
     fetch(`/api/source?${params}`)
       .then(r => r.json())
-      .then(data => {
+      .then(async (data: { sources?: SourceInfo[] }) => {
         if (cancelled) return;
         const allSources = (data.sources || []).filter((source: SourceInfo) => getLangKey(source.language));
         if (allSources.length > 0) {
           setCachedSources(cacheKey, allSources);
+          // Sondeo paralelo: arranca DIRECTO en la primera fuente viva
+          // (durante outages parciales evita 10-25s de fallback en cascada).
+          const aliveIdx = await pickFirstAliveSource(allSources);
+          if (cancelled) return;
           setSources(allSources);
+          if (aliveIdx > 0) {
+            setSourceIdx(aliveIdx);
+          }
         } else if (!retryWithFreshSources()) {
           setError('No se pudo reproducir este contenido');
           setLoading(false);
@@ -879,12 +887,20 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
 
     fetch(`/api/source?${params}`)
       .then(r => r.json())
-      .then(data => {
+      .then(async (data: { sources?: SourceInfo[] }) => {
         if (cancelled) return;
         const allSources = (data.sources || []).filter((source: SourceInfo) => getLangKey(source.language));
         if (allSources.length > 0) {
           setCachedSources(cacheKey, allSources);
+          // Sondeo paralelo: arranca DIRECTO en la primera fuente viva
+          // (durante outages parciales evita 10-25s de fallback en cascada).
+          const aliveIdx = await pickFirstAliveSource(allSources);
+          if (cancelled) return;
           setSources(allSources);
+          if (aliveIdx > 0) {
+            prevSourceRef.current = -1;
+            setCurrentSource(aliveIdx);
+          }
         } else {
           setError('No se pudo reproducir este contenido');
           setLoading(false);
