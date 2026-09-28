@@ -693,6 +693,37 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
   // fetch para que el servidor re-resuelva ignorando su caché.
   const ignorePreloadRef = useRef(false);
   const freshResolveRef = useRef(false);
+  // AUTO-RETRY: los proveedores de este ecosistema van y vienen en minutos
+  // (outages 403 verificados 28-sep). Si todas las fuentes fallan, se
+  // re-resuelve fresco automáticamente hasta 2 veces con espera.
+  const [autoRetryIn, setAutoRetryIn] = useState<number | null>(null);
+  const autoRetryCountRef = useRef(0);
+  const autoRetryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startAutoFreshRetry = useCallback(() => {
+    if (autoRetryCountRef.current >= 2) return false;
+    autoRetryCountRef.current += 1;
+    let seconds = 12;
+    setAutoRetryIn(seconds);
+    if (autoRetryTimerRef.current) clearInterval(autoRetryTimerRef.current);
+    autoRetryTimerRef.current = setInterval(() => {
+      seconds -= 1;
+      if (seconds <= 0) {
+        if (autoRetryTimerRef.current) clearInterval(autoRetryTimerRef.current);
+        autoRetryTimerRef.current = null;
+        setAutoRetryIn(null);
+        try { sessionStorage.removeItem(sourceCacheKey(tmdbId, mediaType, season, episode)); } catch { /* noop */ }
+        ignorePreloadRef.current = true;
+        freshResolveRef.current = true;
+        setSources([]);
+        prevSourceRef.current = -1;
+        setError('');
+        setLoading(true);
+      } else {
+        setAutoRetryIn(seconds);
+      }
+    }, 1000);
+    return true;
+  }, [tmdbId, mediaType, season, episode]);
 
   // ─── Quality selector state ───
   // Available quality levels from the HLS manifest + the currently selected
@@ -937,7 +968,7 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
       if (next >= 0) {
         prevSourceRef.current = -1;
         setCurrentSource(next);
-      } else {
+      } else if (!startAutoFreshRetry()) {
         setError('No se pudo reproducir este contenido');
         setLoading(false);
         addToBlacklist(tmdbId);
@@ -1172,7 +1203,11 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
     // data, hide it once playback resumes. Without this, a network hiccup
     // mid-playback looks like a frozen app.
     const onWaiting = () => setLoading(true);
-    const onPlaying = () => setLoading(false);
+    const onPlaying = () => {
+      setLoading(false);
+      // El video arrancó de verdad: los fallos anteriores quedan perdonados.
+      autoRetryCountRef.current = 0;
+    };
     const onSeeking = () => setLoading(true);
     const onSeeked = () => setLoading(false);
 
@@ -1636,10 +1671,16 @@ function DesktopPlayer({ tmdbId, mediaType, season, episode, title, preloadedSou
               <AlertCircle className="w-8 h-8 text-white/70" />
             </div>
             <p className="text-white/90 text-lg font-semibold mb-2 tracking-tight">{error}</p>
-            <p className="text-white/35 text-sm font-light mb-9">Intenta con otro contenido o cambia el idioma</p>
+            {autoRetryIn !== null ? (
+              <p className="text-white/55 text-sm font-light mb-9">
+                Los servidores no responden ahora — reintentando automáticamente en {autoRetryIn}s…
+              </p>
+            ) : (
+              <p className="text-white/35 text-sm font-light mb-9">Intenta con otro contenido o cambia el idioma</p>
+            )}
             <div className="flex items-center gap-3 justify-center">
               <button onClick={handleRetry} className="nfx-btn-play">
-                Reintentar
+                Reintentar ahora
               </button>
               <button onClick={handleClose} className="nfx-glass-button">
                 Volver
