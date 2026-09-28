@@ -21,8 +21,10 @@ void main() {
   gl_Position = vec4(aPos * uRect.zw + uRect.xy, 0.0, 1.0);
 }`;
 
-// Catmull-Rom bicubic 4x4: reconstruye detalle real de la miniatura en vez
-// de promediarlo (bilinear), que es lo que hace que un upscale se vea blando.
+// Kernel Mitchell-Netravali (B=1/3, C=1/3) — el estándar de cine para
+// reescalar. A diferencia del Catmull-Rom, sus lóbulos negativos son
+// mínimos: no "ringea" en bordes duros (parte de los "bordes horribles"
+// venía de ahí, no solo del sharpen).
 const FRAG_UPSCALE_SRC = `#version 300 es
 precision highp float;
 in vec2 vUv;
@@ -30,24 +32,27 @@ out vec4 outColor;
 uniform sampler2D uTex;
 uniform vec2 uSrcSize;
 
-vec4 cubic(float v) {
-  float v2 = v * v;
-  float v3 = v2 * v;
-  return vec4(
-    -0.5 * v3 + v2 - 0.5 * v,
-     1.5 * v3 - 2.5 * v2 + 1.0,
-    -1.5 * v3 + 2.0 * v2 + 0.5 * v,
-     0.5 * v3 - 0.5 * v2
-  );
+// Mitchell-Netravali B=1/3 C=1/3, evaluada en |x|
+float mitchellK(float x) {
+  float ax = abs(x);
+  float x2 = ax * ax;
+  float x3 = x2 * ax;
+  if (ax < 1.0) return (7.0 * x3 - 12.0 * x2 + 5.3333333) / 6.0;
+  if (ax < 2.0) return (-2.3333333 * x3 + 12.0 * x2 - 20.0 * x + 10.6666667) / 6.0;
+  return 0.0;
 }
 
-vec4 catmullRom(vec2 uv) {
+vec4 mitchellWeights(float f) {
+  return vec4(mitchellK(f + 1.0), mitchellK(f), mitchellK(1.0 - f), mitchellK(2.0 - f));
+}
+
+vec4 mitchellRom(vec2 uv) {
   vec2 texel = 1.0 / uSrcSize;
   vec2 st = uv / texel - 0.5;
   vec2 i = floor(st);
   vec2 f = st - i;
-  vec4 wx = cubic(f.x);
-  vec4 wy = cubic(f.y);
+  vec4 wx = mitchellWeights(f.x);
+  vec4 wy = mitchellWeights(f.y);
   vec4 sum = vec4(0.0);
   for (int y = 0; y < 4; y++) {
     for (int x = 0; x < 4; x++) {
@@ -58,10 +63,13 @@ vec4 catmullRom(vec2 uv) {
   return sum;
 }
 
-void main() { outColor = catmullRom(vUv); }`;
+void main() { outColor = mitchellRom(vUv); }`;
 
-// Unsharp mask ligero: devuelve el "bite" que el upscale digital suaviza.
-// amount 0..1 — 0.4 para imágenes, ~0.35 para video (evita halo en caras).
+// Unsharp CON TOPE DE RANGO (la esencia del RCAS de FSR, sin los constantes
+// mágicos): el resultado afilado se recorta al rango natural [min,max] del
+// vecindario 3x3 — matemáticamente IMPOSIBLE que genere halos u overshoot.
+// La nitidez que sobra (el overshoot que pintaba "bordes horribles
+// artificiales") simplemente no puede existir.
 const FRAG_SHARPEN_SRC = `#version 300 es
 precision highp float;
 in vec2 vUv;
@@ -77,7 +85,11 @@ void main() {
   vec3 e = texture(uTex, vUv + vec2( uTexel.x, 0.0)).rgb;
   vec3 w = texture(uTex, vUv + vec2(-uTexel.x, 0.0)).rgb;
   vec3 blur = (n + s + e + w) * 0.25;
-  outColor = vec4(clamp(c.rgb + (c.rgb - blur) * uAmount, 0.0, 1.0), c.a);
+  vec3 sharp = c.rgb + (c.rgb - blur) * uAmount;
+  // Halo protection: clamp al rango natural del vecindario.
+  vec3 mn = min(c.rgb, min(min(n, s), min(e, w)));
+  vec3 mx = max(c.rgb, max(max(n, s), max(e, w)));
+  outColor = vec4(clamp(sharp, mn, mx), c.a);
 }`;
 
 export interface UpscaleRect {
@@ -363,7 +375,7 @@ export function upscaleImageToCanvas(
   img: HTMLImageElement,
   dstW: number,
   dstH: number,
-  sharpen = 0.45,
+  sharpen = 0.3,
 ): HTMLCanvasElement | null {
   if (!dstW || !dstH) return null;
   try {

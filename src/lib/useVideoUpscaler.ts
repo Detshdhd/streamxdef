@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { GpuUpscaler } from '@/lib/upscale';
 
-/** Fuerza del unsharp aplicado al video upscaled (0..1). */
-const SHARPEN = 0.32;
+/** Fuerza del unsharp del video upscaled — CON tope de rango local en el
+ *  shader, así que no hay halos posibles. Moderado: natural, no artificial. */
+const SHARPEN = 0.22;
 /** El upscale solo aporta cuando el stream queda al menos 15% por debajo. */
 const BENEFIT_SCALE = 1.15;
 /** Cap de canvas en píxeles dispositivo — no procesar más de 1080p-ish. */

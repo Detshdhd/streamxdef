@@ -46,9 +46,9 @@ export default function OptimizedImage({
   decoding = 'async',
   onError,
   onLoad,
-  lowWidth = 92,
+  lowWidth = 154,
   fetchPriority,
-  sharpen = 0.45,
+  sharpen = 0.3,
 }: OptimizedImageProps) {
   const [thumbUrl, setThumbUrl] = useState<string | null>(null);
   const [finalSrc, setFinalSrc] = useState<string | null>(null);
